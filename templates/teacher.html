@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Преподаватель — Неделя{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Моё расписание (неделя)</h1>
+  <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+    <label>Начало: <input type="date" id="start"></label>
+    <label>Конец: <input type="date" id="end"></label>
+    <button onclick="loadAll()">Показать</button>
+  </div>
+
+  <div id="stats" class="muted" style="margin-bottom:10px;"></div>
+  <div id="calendar"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmt(d){ return d.toISOString().slice(0,10); }
+function defaultRange(){
+  const now = new Date(); const day = now.getDay(); const diffToMon = (day+6)%7;
+  const start = new Date(now); start.setDate(now.getDate()-diffToMon);
+  const end = new Date(start); end.setDate(start.getDate()+6);
+  document.getElementById('start').value = fmt(start);
+  document.getElementById('end').value = fmt(end);
+}
+defaultRange();
+
+async function loadAll(){
+  const start = document.getElementById('start').value;
+  const end   = document.getElementById('end').value;
+  const s = await fetch(`/api/teacher/me/stats/?start=${start}&end=${end}`, {credentials:"same-origin"});
+  if(!s.ok){ document.getElementById('stats').textContent = "Нет доступа или ошибка"; return; }
+  const stats = await s.json();
+  document.getElementById('stats').innerHTML =
+    `Пары: <b>${stats.total_lessons}</b> • Часы: <b>${stats.total_hours}</b> • Рабочих дней: <b>${stats.working_days}</b>`;
+
+  const r = await fetch(`/api/teacher/me/schedule/?start=${start}&end=${end}`, {credentials:"same-origin"});
+  const data = await r.json();
+  let html = "";
+  for(const day of data){
+    html += `<h2>${day.date}</h2><table>
+      <tr><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Тип</th><th>Кабинет</th><th>ДЗ</th><th>ID</th></tr>`;
+    for(const item of day.items){
+      if(item.break){
+        html += `<tr class="break"><td>${item.order}</td><td>${item.time}</td><td colspan="6">Перерыв</td><td></td></tr>`;
+      }else{
+        const cls = item.badge || item.status;
+        const room = item.is_remote ? `Дистанционно (${item.remote_platform||"—"})` : (item.room||"—");
+        html += `<tr class="${cls}">
+          <td>${item.order}</td><td>${item.time}</td><td>${item.group}</td>
+          <td>${item.discipline}</td><td>${item.lesson_type}</td>
+          <td>${room}</td><td>${item.homework||""}</td><td>${item.id}</td>
+        </tr>`;
+      }
+    }
+    html += `</table>`;
+  }
+  document.getElementById("calendar").innerHTML = html;
+}
+loadAll();
+</script>
+{% endblock %}

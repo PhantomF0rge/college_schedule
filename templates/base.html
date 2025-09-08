@@ -1,0 +1,71 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Колледж — Расписание{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg:#f5f5f7; --card:#fff; --text:#111; --muted:#666; --bd:#ddd;
+      --ok:#e8f5e9; --err:#ffebee; --link:#2563eb;
+      --past:#eee; --ongo:#c8f7c5; --up:#e3f2fd; --remote:#fff3cd; --break:#f9f9f9;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    a { color:var(--link); text-decoration: none; }
+    header { background:#fff; border-bottom:1px solid var(--bd); position: sticky; top:0; z-index:5; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .nav { display:flex; gap:16px; align-items:center; }
+    .nav .spacer { flex:1; }
+    main .card { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:16px; }
+    h1 { margin:0 0 12px; font-size: 22px; }
+    h2 { margin:12px 0; font-size: 18px; }
+    table { border-collapse: collapse; width: 100%; background:var(--card); }
+    th, td { border:1px solid var(--bd); padding:8px; text-align:center; }
+    .muted { color:var(--muted); }
+    .tag { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--bd); background:#fff; font-size:12px; }
+    .past { background:var(--past); color:#555; }
+    .ongoing { background:var(--ongo); }
+    .upcoming { background:var(--up); }
+    .remote { background:var(--remote); }
+    .break { background:var(--break); color:#555; font-style: italic; }
+    .messages { margin:12px 0; }
+    .msg { padding:10px; border-radius:10px; border:1px solid var(--bd); }
+    .msg.ok { background:var(--ok); }
+    .msg.err { background:var(--err); }
+    footer { color:#777; padding:32px 0; }
+    input, button, select { padding:8px 10px; border:1px solid var(--bd); border-radius:8px; background:#fff; }
+    button { cursor:pointer; }
+    .grid { display:grid; gap:12px; }
+    @media (min-width: 900px) { .grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a href="/" class="tag">Главная</a>
+    <a href="/teacher/" class="tag">Преподаватель</a>
+    <div class="spacer"></div>
+    {% if request.user.is_authenticated %}
+      <span class="muted">Вы вошли как {{ request.user.get_username }}</span>
+      <a href="/logout/" class="tag">Выйти</a>
+    {% else %}
+      <a href="/login/" class="tag">Войти</a>
+    {% endif %}
+  </div>
+</header>
+
+<main class="wrap">
+  {% include "partials/_messages.html" %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="wrap">
+  <div class="muted">© {{ now|date:"Y" }} Колледж. Учебное расписание.</div>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

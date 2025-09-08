@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Главная — Расписание{% endblock %}
+
+{% block content %}
+  <div class="grid cols-2">
+    <div class="card">
+      <h1>Расписание по группе</h1>
+      <div id="setup" style="margin-bottom:12px;">
+        <label>Группа:
+          <input type="text" id="groupInput" placeholder="ИСП-31">
+        </label>
+        <button onclick="saveGroup()">Сохранить</button>
+        <span id="groupStatus" class="muted"></span>
+      </div>
+      <div id="schedule"></div>
+    </div>
+
+    <div class="card">
+      <h2>Инструменты преподавателя</h2>
+      <div class="muted" style="margin-bottom:8px;">Требуется авторизация преподавателя</div>
+      <div id="teacherTools"></div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showInfo(msg){ document.getElementById("groupStatus").textContent = msg; }
+
+  async function saveGroup(){
+    const code = document.getElementById("groupInput").value.trim();
+    if(!code){ showInfo("Укажите код группы"); return; }
+    const r = await fetch("/api/prefs/set_group/?group="+encodeURIComponent(code));
+    if(!r.ok){ showInfo("Ошибка: "+await r.text()); return; }
+    showInfo("Группа сохранена: "+code);
+    await loadSchedule();
+    await renderTeacherTools();
+  }
+
+  async function loadSchedule(){
+    const pref = await fetch("/api/prefs/get_group/").then(r=>r.json());
+    const box = document.getElementById("schedule");
+    if(!pref.group){ box.innerHTML = "<p class='muted'>Группа не выбрана</p>"; return; }
+
+    const r = await fetch("/api/schedule/today/?group="+encodeURIComponent(pref.group));
+    if(!r.ok){ box.innerHTML = "<p class='msg err'>"+(await r.text())+"</p>"; return; }
+    const data = await r.json();
+
+    let html = "<h2>Сегодня для "+pref.group+"</h2>";
+    html += "<table><tr><th>№</th><th>Время</th><th>Дисциплина</th><th>Преподаватель</th><th>Кабинет</th><th>Тип</th><th>ДЗ</th><th>ID</th></tr>";
+    for(const item of data){
+      if(item.break){
+        html += `<tr class="break"><td>${item.order}</td><td>${item.time}</td><td colspan="6">Перерыв</td><td></td></tr>`;
+      }else{
+        const cls = item.badge || item.status;
+        const room = item.is_remote ? `Дистанционно (${item.remote_platform||"—"})` : (item.room||"—");
+        html += `<tr class="${cls}">
+          <td>${item.order}</td>
+          <td>${item.time}</td>
+          <td>${item.discipline}</td>
+          <td>${item.teacher}</td>
+          <td>${room}</td>
+          <td>${item.lesson_type}</td>
+          <td>${item.homework||""}</td>
+          <td>${item.id||""}</td>
+        </tr>`;
+      }
+    }
+    html += "</table>";
+    box.innerHTML = html;
+  }
+
+  // ===== инструменты преподавателя (сокращённо) =====
+  function getCookie(name){
+    const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+  }
+
+  async function renderTeacherTools(){
+    const pref = await fetch("/api/prefs/get_group/").then(r=>r.json());
+    const el = document.getElementById("teacherTools");
+    if(!pref.group){ el.innerHTML = "<p class='muted'>Сначала выберите группу слева</p>"; return; }
+    const lessons = await fetch("/api/schedule/today/?group="+encodeURIComponent(pref.group)).then(r=>r.json());
+    const ids = lessons.filter(x=>!x.break).map(x=>x.id).filter(Boolean);
+
+    el.innerHTML = `
+      <div class="muted" style="margin-bottom:6px;">ID пар на сегодня: ${ids.join(', ')||'—'}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input id="lessonId" placeholder="lesson_id">
+        <input id="hwText" placeholder="текст ДЗ" size="40">
+        <button onclick="sendHW()">Записать ДЗ</button>
+      </div>
+      <div style="margin-top:10px;">
+        <button onclick="loadFreeRooms()">Показать свободные кабинеты</button>
+        <div id="freeRooms" class="muted" style="margin-top:8px;"></div>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+        <input id="roomId" placeholder="room_id">
+        <button onclick="changeRoom()">Сменить кабинет</button>
+      </div>
+    `;
+  }
+
+  async function sendHW(){
+    const lesson_id = document.getElementById("lessonId").value.trim();
+    const text = document.getElementById("hwText").value.trim();
+    if(!lesson_id || !text) return alert("Укажите lesson_id и текст.");
+    const form = new FormData(); form.append("lesson_id", lesson_id); form.append("text", text);
+    const r = await fetch("/api/teacher/homework/set/", {method:"POST", body:form, credentials:"same-origin", headers:{"X-CSRFToken": getCookie("csrftoken")}});
+    alert(await r.text());
+  }
+  async function loadFreeRooms(){
+    const lesson_id = document.getElementById("lessonId").value.trim();
+    if(!lesson_id) return alert("Укажите lesson_id.");
+    const r = await fetch("/api/teacher/room/free/?lesson_id="+encodeURIComponent(lesson_id), {credentials:"same-origin"});
+    if(!r.ok) return alert("Ошибка: "+(await r.text()));
+    const data = await r.json();
+    document.getElementById("freeRooms").innerHTML = "<pre>"+JSON.stringify(data,null,2)+"</pre>";
+  }
+  async function changeRoom(){
+    const lesson_id = document.getElementById("lessonId").value.trim();
+    const room_id = document.getElementById("roomId").value.trim();
+    if(!lesson_id || !room_id) return alert("Укажите оба id.");
+    const form = new FormData(); form.append("lesson_id", lesson_id); form.append("room_id", room_id);
+    const r = await fetch("/api/teacher/room/change/", {method:"POST", body:form, credentials:"same-origin", headers:{"X-CSRFToken": getCookie("csrftoken")}});
+    alert(await r.text());
+  }
+
+  // старт
+  loadSchedule().then(renderTeacherTools);
+</script>
+{% endblock %}

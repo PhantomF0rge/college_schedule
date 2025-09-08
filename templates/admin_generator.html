@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Генератор расписания (админ){% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Автогенерация расписания</h1>
+
+  <div style="display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items:end;">
+    <label>Начало периода
+      <input type="date" id="start">
+    </label>
+    <label>Конец периода
+      <input type="date" id="end">
+    </label>
+    <label>Группы
+      <select id="groups" multiple size="6" style="width:100%;"></select>
+    </label>
+    <div>
+      <label style="display:block; margin-bottom:6px;">
+        <input type="checkbox" id="backtrack" checked> Бэктрекинг (перестановка в соседний слот)
+      </label>
+      <label style="display:block;">
+        <input type="checkbox" id="dryrun" checked> Предпросмотр (без записи)
+      </label>
+    </div>
+    <div>
+      <button id="btnPreview" onclick="runGenerator(true)">Предпросмотр</button>
+      <button id="btnApply" onclick="runGenerator(false)">Применить</button>
+    </div>
+  </div>
+
+  <div id="summary" class="muted" style="margin-top:12px;"></div>
+
+  <div class="grid cols-2" style="margin-top:12px;">
+    <div class="card" style="overflow:auto;">
+      <h2 style="margin-top:0;">Предложения</h2>
+      <table id="tblProposals">
+        <thead>
+          <tr><th>Дата</th><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Преподаватель</th><th>Аудитория / Дист.</th><th>Тип</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card" style="overflow:auto;">
+      <h2 style="margin-top:0;">Конфликты</h2>
+      <table id="tblConflicts">
+        <thead>
+          <tr><th>Дата</th><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Причина</th><th>Детали</th><th>Ссылки</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmt(d){ return d.toISOString().slice(0,10); }
+function defaultRange(){
+  const now = new Date(); const day = now.getDay(); const diffToMon = (day+6)%7;
+  const start = new Date(now); start.setDate(now.getDate() - diffToMon);
+  const end = new Date(start); end.setDate(start.getDate()+6);
+  document.getElementById('start').value = fmt(start);
+  document.getElementById('end').value = fmt(end);
+}
+defaultRange();
+
+async function loadGroups(){
+  const sel = document.getElementById('groups');
+  sel.innerHTML = '<option disabled>Загрузка...</option>';
+  const r = await fetch('/api/admin/groups/', {credentials:'same-origin'});
+  if(!r.ok){ sel.innerHTML = '<option disabled>Ошибка загрузки</option>'; return; }
+  const data = await r.json();
+  sel.innerHTML = '';
+  for(const g of data){
+    const opt = document.createElement('option');
+    opt.value = g.code;
+    opt.textContent = `${g.code} (${g.department||'-'})`;
+    sel.appendChild(opt);
+  }
+}
+loadGroups();
+
+function getSelectedGroups(){
+  const sel = document.getElementById('groups');
+  return Array.from(sel.selectedOptions).map(o=>o.value);
+}
+
+function setBusy(b){
+  document.getElementById('btnPreview').disabled = b;
+  document.getElementById('btnApply').disabled = b;
+}
+
+async function runGenerator(isPreview){
+  const start = document.getElementById('start').value;
+  const end   = document.getElementById('end').value;
+  const groups = getSelectedGroups();
+  const backtrack = document.getElementById('backtrack').checked ? '1' : '0';
+  const dry = (isPreview && document.getElementById('dryrun').checked) ? '1' : '0';
+
+  let url = `/api/admin/generate/?start=${start}&end=${end}&backtrack=${backtrack}&dry_run=${dry}`;
+  if(groups.length){ url += `&groups=${encodeURIComponent(groups.join(','))}`; }
+
+  setBusy(true);
+  document.getElementById('summary').textContent = 'Выполняется...';
+  try{
+    const r = await fetch(url, {credentials:'same-origin'});
+    const json = await r.json();
+    renderResults(json);
+    document.getElementById('summary').innerHTML =
+      (json.dry_run ? 'Предпросмотр' : 'Применено')
+      + ` • предложено: <b>${json.stats?.placed||0}</b> • пропущено: <b>${json.stats?.skipped||0}</b> • конфликтов: <b>${json.conflicts?.length||0}</b>`;
+  }catch(e){
+    document.getElementById('summary').textContent = 'Ошибка: '+e;
+  }finally{
+    setBusy(false);
+  }
+}
+
+function renderResults(data){
+  const tbodyP = document.querySelector('#tblProposals tbody');
+  const tbodyC = document.querySelector('#tblConflicts tbody');
+  tbodyP.innerHTML = '';
+  tbodyC.innerHTML = '';
+
+  (data.proposals||[]).forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${p.date}</td><td>${p.slot}</td><td>${p.time}</td>
+      <td>${p.group||''}</td><td>${p.discipline||''}</td><td>${p.teacher||''}</td>
+      <td>${p.room||''}</td><td>${p.type||''}</td>`;
+    tbodyP.appendChild(tr);
+  });
+
+  (data.conflicts||[]).forEach(c=>{
+    const links = c.links || {};
+    const linkHtml = ['group','discipline','teacher','room'].map(k => {
+      return links[k] ? `<a target="_blank" href="${links[k]}">${k}</a>` : '';
+    }).filter(Boolean).join(' · ');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.date||''}</td><td>${c.slot||''}</td><td>${c.time||''}</td>
+      <td>${c.group||''}</td><td>${c.discipline||''}</td>
+      <td>${c.reason||''}</td><td>${c.details||''}</td><td>${linkHtml}</td>`;
+    tbodyC.appendChild(tr);
+  });
+}
+</script>
+{% endblock %}

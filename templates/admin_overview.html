@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Обзор расписаний (админ){% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Обзор расписаний</h1>
+  <div style="display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items:end;">
+    <label>Начало периода
+      <input type="date" id="start">
+    </label>
+    <label>Конец периода
+      <input type="date" id="end">
+    </label>
+    <label>Преподаватель
+      <select id="teacher"></select>
+    </label>
+    <div>
+      <button onclick="loadTeacher()">Показать преподавателя</button>
+      <button onclick="loadAll()">Снимок всех групп</button>
+    </div>
+  </div>
+
+  <div id="summary" class="muted" style="margin-top:10px;"></div>
+
+  <div class="grid cols-2" style="margin-top:12px;">
+    <div class="card" style="overflow:auto;">
+      <h2 style="margin-top:0;">Расписание преподавателя</h2>
+      <div id="teacherTable"></div>
+    </div>
+    <div class="card" style="overflow:auto;">
+      <h2 style="margin-top:0;">Все группы (снимок)</h2>
+      <div id="allTable"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function fmt(d){ return d.toISOString().slice(0,10); }
+function defaultRange(){
+  const now = new Date(); const day = now.getDay(); const diffToMon = (day+6)%7;
+  const start = new Date(now); start.setDate(now.getDate() - diffToMon);
+  const end = new Date(start); end.setDate(start.getDate()+6);
+  document.getElementById('start').value = fmt(start);
+  document.getElementById('end').value = fmt(end);
+}
+defaultRange();
+
+async function loadTeachers(){
+  const sel = document.getElementById('teacher');
+  sel.innerHTML = '<option disabled>Загрузка...</option>';
+  const r = await fetch('/api/admin/teachers/', {credentials:'same-origin'});
+  const data = await r.json();
+  sel.innerHTML = '';
+  for(const t of data){
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.full_name;
+    sel.appendChild(opt);
+  }
+}
+loadTeachers();
+
+function rowClass(item){ return item.badge || item.status || ""; }
+
+function renderTeacherSchedule(days){
+  let html = "";
+  for(const day of (days||[])){
+    html += `<h3>${day.date}</h3>
+      <table>
+        <tr><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Тип</th><th>Место</th><th>ДЗ</th><th>ID</th></tr>`;
+    for(const it of day.items){
+      if(it.break){
+        html += `<tr class="break"><td>${it.order}</td><td>${it.time}</td><td colspan="5">Перерыв</td><td></td><td></td></tr>`;
+      }else{
+        const place = it.is_remote ? `Дистанционно (${it.remote_platform||"—"})` :
+                      `${it.building||""} ${it.room||""}`;
+        html += `<tr class="${rowClass(it)}">
+          <td>${it.order}</td><td>${it.time}</td><td>${it.group}</td>
+          <td>${it.discipline}</td><td>${it.lesson_type||""}</td>
+          <td>${place}</td><td>${it.homework||""}</td><td>${it.id||""}</td>
+        </tr>`;
+      }
+    }
+    html += `</table>`;
+  }
+  document.getElementById("teacherTable").innerHTML = html || "<p class='muted'>Нет данных</p>";
+}
+
+function renderAllRows(rows){
+  // Группируем по дате
+  const byDate = {};
+  (rows||[]).forEach(r => { (byDate[r.date] ||= []).push(r); });
+  let html = "";
+  Object.keys(byDate).sort().forEach(d=>{
+    html += `<h3>${d}</h3>
+      <table>
+        <tr><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Преподаватель</th><th>Тип</th><th>Место</th><th>ID</th></tr>`;
+    for(const it of byDate[d]){
+      const place = it.is_remote ? `Дистанционно (${it.remote_platform||"—"})` :
+                    `${it.building||""} ${it.room||""}`;
+      html += `<tr class="${rowClass(it)}">
+        <td>${it.slot}</td><td>${it.time}</td><td>${it.group}</td><td>${it.discipline}</td>
+        <td>${it.teacher}</td><td>${it.lesson_type||""}</td><td>${place}</td><td>${it.id}</td>
+      </tr>`;
+    }
+    html += `</table>`;
+  });
+  document.getElementById("allTable").innerHTML = html || "<p class='muted'>Нет занятий</p>";
+}
+
+async function loadTeacher(){
+  const start = document.getElementById('start').value;
+  const end   = document.getElementById('end').value;
+  const tid   = document.getElementById('teacher').value;
+  if(!tid){ alert("Выберите преподавателя"); return; }
+  document.getElementById('summary').textContent = "Загрузка расписания преподавателя...";
+  const r = await fetch(`/api/admin/teacher/schedule/?teacher_id=${tid}&start=${start}&end=${end}`, {credentials:'same-origin'});
+  const data = await r.json();
+  renderTeacherSchedule(data);
+  document.getElementById('summary').textContent = "Готово.";
+}
+
+async function loadAll(){
+  const start = document.getElementById('start').value;
+  const end   = document.getElementById('end').value;
+  document.getElementById('summary').textContent = "Загрузка снимка всех групп...";
+  const r = await fetch(`/api/admin/schedule/period_all/?start=${start}&end=${end}`, {credentials:'same-origin'});
+  const data = await r.json();
+  renderAllRows(data);
+  document.getElementById('summary').textContent = `Загружено: ${data.length} занятий.`;
+}
+</script>
+{% endblock %}

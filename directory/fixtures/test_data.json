@@ -1,0 +1,111 @@
+[
+  {
+    "model": "directory.building",
+    "pk": 1,
+    "fields": {"name": "Главный корпус"}
+  },
+  {
+    "model": "directory.roomtype",
+    "pk": 1,
+    "fields": {"name": "Обычный класс"}
+  },
+  {
+    "model": "directory.room",
+    "pk": 1,
+    "fields": {
+      "building": 1,
+      "name": "101",
+      "capacity": 30,
+      "computers": 0,
+      "room_type": 1
+    }
+  },
+  {
+    "model": "directory.lessontype",
+    "pk": 1,
+    "fields": {"name": "Лекция"}
+  },
+  {
+    "model": "directory.lessontype",
+    "pk": 2,
+    "fields": {"name": "Практика"}
+  },
+  {
+    "model": "directory.discipline",
+    "pk": 1,
+    "fields": {"title": "Математика"}
+  },
+  {
+    "model": "directory.discipline",
+    "pk": 2,
+    "fields": {"title": "Информатика"}
+  },
+  {
+    "model": "directory.teacher",
+    "pk": 1,
+    "fields": {"full_name": "Иванов Иван Иванович"}
+  },
+  {
+    "model": "directory.teacher",
+    "pk": 2,
+    "fields": {"full_name": "Петров Петр Петрович"}
+  },
+  {
+    "model": "directory.studentgroup",
+    "pk": 1,
+    "fields": {"code": "ИСП-31", "size": 25, "department": "СПО"}
+  },
+  {
+    "model": "scheduleapp.timeslot",
+    "pk": 1,
+    "fields": {"order": 3, "start_time": "09:00:00", "end_time": "10:30:00"}
+  },
+  {
+    "model": "scheduleapp.timeslot",
+    "pk": 2,
+    "fields": {"order": 4, "start_time": "10:40:00", "end_time": "12:10:00"}
+  },
+  {
+    "model": "scheduleapp.timeslot",
+    "pk": 3,
+    "fields": {"order": 5, "start_time": "12:40:00", "end_time": "14:10:00"}
+  },
+  {
+    "model": "scheduleapp.lesson",
+    "pk": 1,
+    "fields": {
+      "date": "2025-09-08",
+      "timeslot": 1,
+      "group": 1,
+      "discipline": 1,
+      "teacher": 1,
+      "lesson_type": 1,
+      "room": 1,
+      "is_remote": false,
+      "remote_platform": ""
+    }
+  },
+  {
+    "model": "scheduleapp.lesson",
+    "pk": 2,
+    "fields": {
+      "date": "2025-09-08",
+      "timeslot": 3,
+      "group": 1,
+      "discipline": 2,
+      "teacher": 2,
+      "lesson_type": 2,
+      "room": 1,
+      "is_remote": true,
+      "remote_platform": "Moodle"
+    }
+  },
+  {
+  "model": "scheduleapp.homeworkitem",
+  "pk": 1,
+  "fields": {
+    "lesson": 2,
+    "text": "Подготовить отчёт по лабораторной №1 (Moodle)."
+  }
+}
+]

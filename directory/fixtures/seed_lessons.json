@@ -1,0 +1,25 @@
+[
+  {"model":"scheduleapp.lesson","pk":1001,
+   "fields":{"date":"2025-09-15","timeslot":1,"group":1,"discipline":1,"teacher":1,"lesson_type":1,"room":1,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1002,
+   "fields":{"date":"2025-09-15","timeslot":2,"group":1,"discipline":2,"teacher":2,"lesson_type":2,"room":11,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1003,
+   "fields":{"date":"2025-09-15","timeslot":3,"group":2,"discipline":10,"teacher":5,"lesson_type":2,"room":12,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1004,
+   "fields":{"date":"2025-09-15","timeslot":4,"group":3,"discipline":4,"teacher":8,"lesson_type":3,"room":14,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1005,
+   "fields":{"date":"2025-09-15","timeslot":5,"group":4,"discipline":11,"teacher":10,"lesson_type":1,"room":5,"is_remote":true,"remote_platform":"Moodle"}},
+
+  {"model":"scheduleapp.lesson","pk":1006,
+   "fields":{"date":"2025-09-16","timeslot":1,"group":5,"discipline":4,"teacher":8,"lesson_type":1,"room":14,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1007,
+   "fields":{"date":"2025-09-16","timeslot":2,"group":5,"discipline":8,"teacher":10,"lesson_type":2,"room":16,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1008,
+   "fields":{"date":"2025-09-16","timeslot":3,"group":6,"discipline":7,"teacher":9,"lesson_type":1,"room":15,"is_remote":false,"remote_platform":""}},
+  {"model":"scheduleapp.lesson","pk":1009,
+   "fields":{"date":"2025-09-16","timeslot":4,"group":6,"discipline":12,"teacher":3,"lesson_type":1,"room":1,"is_remote":true,"remote_platform":"Teams"}},
+
+  {"model":"scheduleapp.homeworkitem","pk":2001,"fields":{"lesson":1002,"text":"Решить 10 задач по циклам (сдать в GitHub Classroom)."}},
+  {"model":"scheduleapp.homeworkitem","pk":2002,"fields":{"lesson":1004,"text":"Подготовить отчёт по лабораторной №2 (скриншоты конфигурации свича)."}},
+  {"model":"scheduleapp.homeworkitem","pk":2003,"fields":{"lesson":1009,"text":"Конспект по графам. Прислать в Teams до 22:00."}}
+]

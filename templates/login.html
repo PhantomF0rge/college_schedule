@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Вход</h1>
+  <form method="post" style="display:grid; gap:10px;">
+    {% csrf_token %}
+    <label>Логин<br><input name="username" required></label>
+    <label>Пароль<br><input name="password" type="password" required></label>
+    <div>
+      <button type="submit">Войти</button>
+      <a class="muted" href="/">На главную</a>
+    </div>
+    {% if form.errors %}
+      <div class="msg err">Неверные данные</div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,68 @@
+[
+  {"model":"directory.groupdisciplineplan","pk":1,"fields":{"group":1,"discipline":1,"hours_total":64,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":2,"fields":{"group":1,"discipline":2,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":3,"fields":{"group":1,"discipline":3,"hours_total":68,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":4,"fields":{"group":1,"discipline":6,"hours_total":68,"hours_assigned":0}},
+
+  {"model":"directory.groupdisciplineplan","pk":5,"fields":{"group":2,"discipline":1,"hours_total":64,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":6,"fields":{"group":2,"discipline":10,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":7,"fields":{"group":2,"discipline":9,"hours_total":68,"hours_assigned":0}},
+
+  {"model":"directory.groupdisciplineplan","pk":8,"fields":{"group":3,"discipline":2,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":9,"fields":{"group":3,"discipline":4,"hours_total":68,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":10,"fields":{"group":3,"discipline":5,"hours_total":68,"hours_assigned":0}},
+
+  {"model":"directory.groupdisciplineplan","pk":11,"fields":{"group":4,"discipline":3,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":12,"fields":{"group":4,"discipline":6,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":13,"fields":{"group":4,"discipline":11,"hours_total":36,"hours_assigned":0}},
+
+  {"model":"directory.groupdisciplineplan","pk":14,"fields":{"group":5,"discipline":4,"hours_total":68,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":15,"fields":{"group":5,"discipline":7,"hours_total":68,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":16,"fields":{"group":5,"discipline":8,"hours_total":34,"hours_assigned":0}},
+
+  {"model":"directory.groupdisciplineplan","pk":17,"fields":{"group":6,"discipline":5,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":18,"fields":{"group":6,"discipline":7,"hours_total":72,"hours_assigned":0}},
+  {"model":"directory.groupdisciplineplan","pk":19,"fields":{"group":6,"discipline":12,"hours_total":64,"hours_assigned":0}},
+
+  {"model":"directory.teachingassignment","pk":1,"fields":{"group":1,"discipline":1,"teacher":1}},
+  {"model":"directory.teachingassignment","pk":2,"fields":{"group":1,"discipline":2,"teacher":2}},
+  {"model":"directory.teachingassignment","pk":3,"fields":{"group":1,"discipline":3,"teacher":3}},
+  {"model":"directory.teachingassignment","pk":4,"fields":{"group":1,"discipline":6,"teacher":6}},
+
+  {"model":"directory.teachingassignment","pk":5,"fields":{"group":2,"discipline":1,"teacher":1}},
+  {"model":"directory.teachingassignment","pk":6,"fields":{"group":2,"discipline":10,"teacher":5}},
+  {"model":"directory.teachingassignment","pk":7,"fields":{"group":2,"discipline":9,"teacher":4}},
+
+  {"model":"directory.teachingassignment","pk":8,"fields":{"group":3,"discipline":2,"teacher":2}},
+  {"model":"directory.teachingassignment","pk":9,"fields":{"group":3,"discipline":4,"teacher":8}},
+  {"model":"directory.teachingassignment","pk":10,"fields":{"group":3,"discipline":5,"teacher":7}},
+
+  {"model":"directory.teachingassignment","pk":11,"fields":{"group":4,"discipline":3,"teacher":3}},
+  {"model":"directory.teachingassignment","pk":12,"fields":{"group":4,"discipline":6,"teacher":6}},
+  {"model":"directory.teachingassignment","pk":13,"fields":{"group":4,"discipline":11,"teacher":10}},
+
+  {"model":"directory.teachingassignment","pk":14,"fields":{"group":5,"discipline":4,"teacher":8}},
+  {"model":"directory.teachingassignment","pk":15,"fields":{"group":5,"discipline":7,"teacher":9}},
+  {"model":"directory.teachingassignment","pk":16,"fields":{"group":5,"discipline":8,"teacher":10}},
+
+  {"model":"directory.teachingassignment","pk":17,"fields":{"group":6,"discipline":5,"teacher":7}},
+  {"model":"directory.teachingassignment","pk":18,"fields":{"group":6,"discipline":7,"teacher":9}},
+  {"model":"directory.teachingassignment","pk":19,"fields":{"group":6,"discipline":12,"teacher":3}},
+
+  {"model":"directory.teacherworkload","pk":1,"fields":{"teacher":1,"weekly_hours_limit":18,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":2,"fields":{"teacher":2,"weekly_hours_limit":20,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":3,"fields":{"teacher":3,"weekly_hours_limit":22,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":4,"fields":{"teacher":4,"weekly_hours_limit":18,"days_off":"6","default_start":"09:40:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":5,"fields":{"teacher":5,"weekly_hours_limit":16,"days_off":"6","default_start":"08:00:00","default_end":"16:30:00"}},
+  {"model":"directory.teacherworkload","pk":6,"fields":{"teacher":6,"weekly_hours_limit":20,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":7,"fields":{"teacher":7,"weekly_hours_limit":18,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":8,"fields":{"teacher":8,"weekly_hours_limit":18,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":9,"fields":{"teacher":9,"weekly_hours_limit":18,"days_off":"6","default_start":"08:00:00","default_end":"18:10:00"}},
+  {"model":"directory.teacherworkload","pk":10,"fields":{"teacher":10,"weekly_hours_limit":12,"days_off":"6","default_start":"08:00:00","default_end":"14:50:00"}},
+
+  {"model":"directory.teacherdayoverride","pk":1,"fields":{"teacher":5,"date":"2025-09-17","is_off":true,"start":null,"end":null}},
+  {"model":"directory.teacherdayoverride","pk":2,"fields":{"teacher":7,"date":"2025-09-18","is_off":false,"start":"10:00:00","end":"16:30:00"}},
+
+  {"model":"directory.holiday","pk":1,"fields":{"date":"2025-11-04","title":"День народного единства","is_working":false}},
+  {"model":"directory.holiday","pk":2,"fields":{"date":"2025-12-31","title":"Предновогодний день (укороченный)","is_working":true}}
+]
