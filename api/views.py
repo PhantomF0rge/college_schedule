@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.db.models import Q
 from django.db import transaction
 from django.conf import settings
@@ -11,12 +11,22 @@ from directory.models import (
 )
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
-from scheduleapp.models import Lesson, TimeSlot, HomeworkItem, Room
+from scheduleapp.models import Lesson, TimeSlot, HomeworkItem, Room, ImportJob
 from urllib.parse import quote, unquote
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
 from directory.models import Room
+import csv
+from io import StringIO
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET
+import json, re
+from django.db import IntegrityError
+from pathlib import Path
+from django.forms.models import model_to_dict
 
 COOKIE_NAME = "preferred_group"
 
@@ -99,6 +109,25 @@ def _pick(d, keys):
 
 def _list(model, values):
     return list(model.objects.values(*values))
+
+def _daterange_from_params(request):
+    start = request.GET.get("start")
+    end = request.GET.get("end")
+    try:
+        if start:
+            start_date = datetime.fromisoformat(start).date()
+        else:
+            # по умолчанию — текущая неделя (пн-вс)
+            today = timezone.localdate()
+            wd = (today.weekday())  # 0=Mon
+            start_date = today - timedelta(days=wd)
+        if end:
+            end_date = datetime.fromisoformat(end).date()
+        else:
+            end_date = start_date + timedelta(days=6)
+    except ValueError:
+        return None, None
+    return start_date, end_date
 
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
@@ -1250,3 +1279,315 @@ def studio_options(request):
         "timeslots":   list(TimeSlot.objects.values("id","order","start_time","end_time").order_by("order")),
     }
     return JsonResponse(data)
+
+@login_required
+def export_ics(request):
+    """
+    GET /api/export/ics/?group=КОД | &teacher=ID [&start=YYYY-MM-DD&end=YYYY-MM-DD]
+    """
+    group_code = request.GET.get("group")
+    teacher_id = request.GET.get("teacher")
+    if not group_code and not teacher_id:
+        return HttpResponseBadRequest("Нужно ?group=КОД или ?teacher=ID")
+
+    start_date, end_date = _daterange_from_params(request)
+    if not start_date:
+        return HttpResponseBadRequest("Неверные даты")
+
+    qs = Lesson.objects.filter(date__range=(start_date, end_date)).select_related(
+        "timeslot","group","discipline","teacher","lesson_type","room","room__building"
+    )
+    if group_code:
+        qs = qs.filter(group__code=group_code)
+        filename = f"schedule_{group_code}_{start_date}_{end_date}.ics"
+        calname = f"Расписание {group_code}"
+    else:
+        try:
+            teacher_id = int(teacher_id)
+        except ValueError:
+            return HttpResponseBadRequest("teacher должен быть числом")
+        t = Teacher.objects.filter(id=teacher_id).first()
+        qs = qs.filter(teacher_id=teacher_id)
+        filename = f"schedule_teacher_{teacher_id}_{start_date}_{end_date}.ics"
+        calname = f"Расписание преподавателя {t.full_name if t else teacher_id}"
+
+    # ICS
+    def dtfmt(d, t):  # без TZ, «плавающее» локальное время
+        return f"{d.year:04d}{d.month:02d}{d.day:02d}T{t.hour:02d}{t.minute:02d}00"
+
+    out = []
+    out.append("BEGIN:VCALENDAR")
+    out.append("VERSION:2.0")
+    out.append(f"PRODID:-//College Schedule//RU")
+    out.append(f"X-WR-CALNAME:{calname}")
+    for l in qs.order_by("date","timeslot__order"):
+        dtstart = dtfmt(l.date, l.timeslot.start_time)
+        dtend   = dtfmt(l.date, l.timeslot.end_time)
+        uid = f"lesson-{l.id}@college"
+        summary = f"{l.discipline.title} — {l.group.code if l.group_id else ''}"
+        if l.lesson_type:
+            summary += f" ({l.lesson_type.name})"
+        location = "Дистанционно" if l.is_remote else (
+            f"{l.room.building.name if l.room and l.room.building else ''} {l.room.name if l.room else ''}"
+        )
+        desc_lines = [
+            f"Преподаватель: {l.teacher.full_name}",
+            f"Формат: {'дистанционный' if l.is_remote else 'очный'}",
+        ]
+        if l.is_remote and l.remote_platform:
+            desc_lines.append(f"Платформа: {l.remote_platform}")
+        try:
+            hw = l.homework.text
+            if hw: desc_lines.append(f"ДЗ: {hw}")
+        except ObjectDoesNotExist:
+            pass
+        description = "\\n".join(desc_lines)
+
+        out += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTART:{dtstart}",
+            f"DTEND:{dtend}",
+            f"SUMMARY:{summary}",
+            f"LOCATION:{location}",
+            f"DESCRIPTION:{description}",
+            "END:VEVENT",
+        ]
+    out.append("END:VCALENDAR")
+    body = "\r\n".join(out)
+
+    resp = HttpResponse(body, content_type="text/calendar; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
+@login_required
+@user_passes_test(_is_admin)
+def export_csv(request):
+    """
+    GET /api/export/csv/?start=YYYY-MM-DD&end=YYYY-MM-DD [&group=КОД | &teacher=ID]
+    Если ни group ни teacher — отдадим все группы за период.
+    """
+    start_date, end_date = _daterange_from_params(request)
+    if not start_date:
+        return HttpResponseBadRequest("Неверные даты")
+
+    qs = Lesson.objects.filter(date__range=(start_date, end_date)).select_related(
+        "timeslot","group","discipline","teacher","lesson_type","room","room__building"
+    )
+    group_code = request.GET.get("group")
+    teacher_id = request.GET.get("teacher")
+    fname_hint = "all"
+    if group_code:
+        qs = qs.filter(group__code=group_code)
+        fname_hint = f"group_{group_code}"
+    if teacher_id:
+        try: teacher_id = int(teacher_id)
+        except ValueError: return HttpResponseBadRequest("teacher должен быть числом")
+        qs = qs.filter(teacher_id=teacher_id)
+        fname_hint = f"teacher_{teacher_id}"
+
+    si = StringIO()
+    w = csv.writer(si, delimiter=";")
+    w.writerow(["id","date","slot","time","group","discipline","lesson_type","teacher","room","building","is_remote","remote_platform"])
+    for l in qs.order_by("date","timeslot__order","group__code"):
+        w.writerow([
+            l.id,
+            l.date.isoformat(),
+            l.timeslot.order,
+            f"{l.timeslot.start_time.strftime('%H:%M')}–{l.timeslot.end_time.strftime('%H:%M')}",
+            l.group.code if l.group_id else "",
+            l.discipline.title,
+            l.lesson_type.name if l.lesson_type_id else "",
+            l.teacher.full_name,
+            l.room.name if l.room_id else "",
+            l.room.building.name if (l.room_id and l.room.building_id) else "",
+            "1" if l.is_remote else "0",
+            l.remote_platform or "",
+        ])
+    csv_bytes = si.getvalue().encode("utf-8-sig")  # с BOM, чтобы Excel открыл по-русски
+    resp = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="schedule_{fname_hint}_{start_date}_{end_date}.csv"'
+    return resp
+
+@require_POST
+def logout_view(request):
+    logout(request)
+    return redirect("index")  # или: return redirect("/")
+
+@login_required
+@user_passes_test(_is_admin)
+@require_GET
+def ranepa_fetch(request):
+    q = (request.GET.get("q") or "").strip()  # МОЖЕТ быть пустым => значит "вытянуть всё"
+    kind = request.GET.get("kind") or "group"
+    sem = int(request.GET.get("sem") or 1)
+    start = request.GET.get("start")
+    end   = request.GET.get("end")
+    if not (start and end):
+        return HttpResponseBadRequest("start, end обязательны")
+
+    from .services.ranepa import fetch_week_from_ranepa
+    items = fetch_week_from_ranepa(q=q, kind=kind, sem=sem, start=start, end=end)
+    return JsonResponse({"items": items})
+
+def _derive_building_name(room_str: str|None) -> str|None:
+    if not room_str: return None
+    s = str(room_str).strip()
+    if s.upper().startswith("СДО"): return None
+    if re.fullmatch(r"\d+", s):
+        return "Колледж" if int(s) < 100 else "Высшее Образование"
+    return "Не указан"
+
+def _safe_order(val):
+    if val is None: return None
+    s = str(val).strip()
+    if s.isdigit(): return int(s)
+    m = re.search(r"(\d+)", s)
+    return int(m.group(1)) if m else None
+
+def _norm(s):
+    return re.sub(r"\s+", " ", (s or "").replace("\xa0", " ")).strip()
+
+@login_required
+@user_passes_test(_is_admin)
+@require_POST
+def ranepa_import(request):
+    try:
+        payload = json.loads(request.body or "{}")
+        items       = payload.get("items") or []
+        import_meta = payload.get("meta")  or {}   # можно передавать start/end/sem и т.п.
+    except Exception:
+        return HttpResponseBadRequest("bad json")
+
+    report = {"created":0,"updated":0,"skipped":0,"errors":0,"reasons":{}, "samples":[]}
+    def bump(reason):
+        report["reasons"][reason] = report["reasons"].get(reason,0)+1
+
+    for raw in items:
+        try:
+            # дата
+            try:
+                date = datetime.fromisoformat(raw.get("date")).date()
+            except Exception:
+                report["errors"] += 1; bump("BAD_DATE")
+                if len(report["samples"])<12: report["samples"].append({"reason":"BAD_DATE","item":raw})
+                continue
+
+            # номер пары
+            order = _safe_order(raw.get("order"))
+            if not order:
+                report["skipped"] += 1; bump("NO_ORDER")
+                if len(report["samples"])<12: report["samples"].append({"reason":"NO_ORDER","item":raw})
+                continue
+
+            ts = TimeSlot.objects.filter(order=order).first()
+            if not ts:
+                report["skipped"] += 1; bump("NO_TIMESLOT")
+                if len(report["samples"])<12: report["samples"].append({"reason":"NO_TIMESLOT","item":raw})
+                continue
+
+            # группы: допускаем несколько
+            groups_raw = re.split(r"[,\s]+", _norm(raw.get("group")))
+            groups_raw = [g for g in groups_raw if g]
+            if not groups_raw:
+                report["skipped"] += 1; bump("NO_GROUP")
+                if len(report["samples"])<12: report["samples"].append({"reason":"NO_GROUP","item":raw})
+                continue
+
+            # дисциплина + «поток»
+            disc_base  = _norm(raw.get("discipline")) or "Без названия"
+            if len(groups_raw) > 1:
+                disc_title = f"{disc_base} (Поток {'/'.join(groups_raw)})"
+            else:
+                disc_title = disc_base
+            discipline, _ = Discipline.objects.get_or_create(title=disc_title)
+
+            # преподаватель / тип
+            teacher = None
+            teacher_name = _norm(raw.get("teacher"))
+            if teacher_name:
+                teacher, _ = Teacher.objects.get_or_create(full_name=teacher_name)
+
+            lesson_type = None
+            lt_name = _norm(raw.get("lesson_type"))
+            if lt_name:
+                lesson_type, _ = LessonType.objects.get_or_create(name=lt_name)
+
+            # аудитория / корпус
+            is_remote = bool(raw.get("is_remote"))
+            room_obj = None
+            remote_pl = None
+            if is_remote:
+                remote_pl = _norm(raw.get("remote_platform"))
+            if not is_remote:
+                room_name = _norm(raw.get("room"))
+                bname = _norm(raw.get("building")) or _derive_building_name(room_name)
+                building = None
+                if bname:
+                    building, _ = Building.objects.get_or_create(name=bname)
+                if not building:
+                    building, _ = Building.objects.get_or_create(name="Не указан")
+                if room_name:
+                    room_obj, _ = Room.objects.get_or_create(
+                        name=room_name, building=building,
+                        defaults={"capacity": 30}
+                    )
+
+            # создаём/обновляем для каждой группы
+            for code in groups_raw:
+                code = code.strip()
+                if not code:
+                    report["skipped"] += 1; bump("EMPTY_GROUP_TOKEN"); continue
+                group, _ = StudentGroup.objects.get_or_create(code=code, defaults={"size": 0})
+
+                values = dict(
+                    discipline=discipline,
+                    teacher=teacher,
+                    lesson_type=lesson_type,
+                    room=room_obj,
+                    is_remote=is_remote,
+                    remote_platform=remote_pl or ""
+                )
+                try:
+                    with transaction.atomic():
+                        obj = Lesson.objects.select_for_update().filter(date=date, timeslot=ts, group=group).first()
+                        if obj:
+                            for k,v in values.items(): setattr(obj,k,v)
+                            obj.save(); report["updated"] += 1
+                        else:
+                            Lesson.objects.create(group=group, date=date, timeslot=ts, **values)
+                            report["created"] += 1
+                except IntegrityError:
+                    report["errors"] += 1; bump("DB_INTEGRITY")
+                    if len(report["samples"])<12:
+                        report["samples"].append({"reason":"DB_INTEGRITY","item":{**raw,"group":code}})
+
+        except Exception as e:
+            report["errors"] += 1; bump(type(e).__name__)
+            if len(report["samples"])<12:
+                report["samples"].append({"reason":type(e).__name__,"item":raw})
+
+    # ===== сохранить лог и запись журнала =====
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir  = Path(settings.MEDIA_ROOT) / "import_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_name = f"ranepa_{ts}.json"
+    log_path = log_dir / log_name
+    try:
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump({"params": import_meta, "report": report}, f, ensure_ascii=False, indent=2)
+        log_url = settings.MEDIA_URL + "import_logs/" + log_name
+    except Exception:
+        log_url = ""
+
+    job = ImportJob.objects.create(
+        user=request.user,
+        source="RANEPA",
+        params=import_meta,
+        totals=report,
+        reasons=report.get("reasons", {}),
+        samples=report.get("samples", []),
+        log_file=("import_logs/" + log_name) if log_url else "",
+    )
+
+    return JsonResponse({"ok": True, "job_id": job.id, "totals": report, "log_url": log_url})

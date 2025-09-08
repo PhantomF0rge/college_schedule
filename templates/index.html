@@ -1,132 +1,561 @@
 {% extends "base.html" %}
 {% block title %}Главная — Расписание{% endblock %}
 
+{% block head %}
+<style>
+  :root{
+    --accent:#cb1746; --glass:#ecf3f3; --ink:#1f2024; --ink2:#3a3c42; --line:rgba(31,32,36,.14);
+    --ok:#c8f7c5; --soon:#e3f2fd; --past:#eceff1; --remote:#fff3cd;
+  }
+  body{
+    background:
+      radial-gradient(900px 520px at 12% -10%, rgba(203,23,70,.10), transparent 60%),
+      radial-gradient(780px 520px at 88% 110%, rgba(203,23,70,.10), transparent 60%),
+      #f6f8f9;
+    color:var(--ink);
+  }
+  .glass{
+    background: color-mix(in srgb, var(--glass) 66%, transparent);
+    border:1px solid rgba(255,255,255,.45);
+    box-shadow: 0 6px 24px rgba(31,32,36,.08), inset 0 1px 0 rgba(255,255,255,.5);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-radius: 18px;
+  }
+  .pad{ padding:14px; }
+
+  /* ===== TOP SEARCH ===== */
+  .topbar{
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px; align-items: end;
+  }
+  @media (max-width: 900px){ .topbar{ grid-template-columns: 1fr; } }
+
+  .field{ position:relative; }
+  .label{ display:block; font-size:12px; color:#6b717a; margin:0 0 4px 6px; }
+  .input{
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#fff; outline:none;
+    box-shadow: 0 1px 0 rgba(255,255,255,.8) inset;
+  }
+  .input:focus{
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .btn{
+    appearance:none; border:1px solid var(--accent);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 15%, white 85%), #fff);
+    color:var(--ink); padding:12px 14px; border-radius:12px; cursor:pointer; font-weight:600;
+  }
+  .btn.secondary{ border-color:var(--line); background:#fff; }
+  .muted{ color:#6b717a; }
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
+    border:1px solid var(--line); border-radius:999px; background:#fff; font-size:14px;
+  }
+  .chip button{ border:none; background:none; cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
+
+  /* Autocomplete overlay (portal to body) */
+  .ac-portal{
+    position: fixed; left:0; top:0; width:0; height:0; z-index: 9999; /* контейнер-портал */
+  }
+  .ac-list{
+    position: absolute;
+    background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: 0 16px 36px rgba(31,32,36,.16);
+    max-height:320px; overflow:auto; display:none;
+  }
+  .ac-group{ padding:6px 10px; font-size:12px; color:#8a8f98; background:#fafbfc; position:sticky; top:0; }
+  .ac-item{ padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; }
+  .ac-item small{ color:#8a8f98; }
+  .ac-item:hover, .ac-item.active{ background: color-mix(in srgb, var(--accent) 6%, #f7f9fa); }
+  .ac-empty{ padding:10px 12px; color:#8a8f98; }
+
+  /* ===== LAYOUT: MAIN + SIDEBAR ===== */
+  /* Desktop: расписание слева, период справа */
+  .main-grid{
+    display:grid;
+    gap:16px;
+    grid-template-columns:minmax(0,1fr) 320px;
+    grid-template-areas: "results sidebar";
+    align-items:start;
+  }
+  .results{ grid-area: results; }
+  .sidebar{ grid-area: sidebar; }
+
+  /* Mobile: сначала период, потом расписание */
+  @media (max-width:980px){
+    .main-grid{
+      grid-template-columns:1fr;
+      grid-template-areas:
+        "sidebar"
+        "results";
+    }
+    /* чтобы панель периода не «прилипала» и не перекрывала контент на мобилках */
+    .sidebar{ position: static; }
+  }
+  .results{ padding:16px; overflow:auto; }
+  .sidebar{ padding:16px; position:sticky; top:12px; height:max-content; z-index: 1; }
+
+  /* ===== PERIOD SIDEBAR ===== */
+  .seg{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .seg .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 12px; background:#fff; border:1px solid var(--line);
+    border-radius:999px; cursor:pointer; user-select:none;
+  }
+  .seg input{ display:none; }
+  .seg input:checked + .pill{
+    background: color-mix(in srgb, var(--accent) 10%, #fff);
+    border-color: color-mix(in srgb, var(--accent) 40%, #fff);
+  }
+  .dates{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .date-input{ display:flex; flex-direction:column; gap:4px; }
+  .date-input input[type="date"]{
+    padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:#fff; width:100%;
+  }
+
+  /* ===== DAY SECTION ===== */
+  .section + .section{ margin-top:14px; }
+  .day-header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 6px 10px; border-bottom:1px dashed var(--line); color:var(--ink2);
+  }
+  .cards{ display:grid; gap:12px; grid-template-columns: 1fr; } /* 1 карта в строке всегда */
+
+  /* ===== LESSON CARD ===== */
+  .card{
+    border:1px solid var(--line); border-radius:16px; background:#fff;
+    box-shadow: 0 4px 18px rgba(31,32,36,.06);
+    display:grid; grid-template-columns: 56px 1fr minmax(120px, auto); gap:12px; align-items:center;
+    padding:12px;
+  }
+  .slot{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .slot-num{
+    width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); font-weight:700; background:#fff;
+  }
+  .time{ font-size:12px; color:#6b717a; }
+
+  .main{ min-width:0; }
+  .title{ font-weight:800; line-height:1.2; }
+  .subtitle{ color:#6b717a; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .meta{ text-align:right; }
+  .room{ font-weight:700; }
+  .building{ color:#6b717a; font-size:13px; margin-top:2px; }
+
+  /* бейджи: статичные, без выделения/каретки/фокуса */
+  .badges{
+    display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;
+    pointer-events:none;                    /* не интерактивные */
+  }
+
+  .badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    height:32px; padding:0 12px;            /* стабильная высота/внутренности */
+    box-sizing:border-box; background-clip:padding-box;
+    border:1px solid var(--line); border-radius:999px; background:#fff;
+    font-size:12px; line-height:1; font-weight:500;
+    user-select:none; -webkit-user-select:none; -ms-user-select:none;
+    caret-color:transparent;                 /* нет каретки */
+    outline:none; box-shadow:none;           /* нет обводки фокуса */
+    -webkit-tap-highlight-color:transparent; 
+    transform:translateZ(0);                 /* убирает 1px артефакты в хроме */
+    cursor:default;
+  }
+  /* на всякий случай гасим выделение текста внутри */
+  .badge::selection, .badge *::selection{ background:transparent; color:inherit; }
+  .badge:focus, .badge:active, .badge:focus-visible{ outline:none; box-shadow:none; }
+
+  /* твоё окрашивание — оставляем */
+  .badge.type{ border-color:#b0bec5; }
+  .badge.mode-remote{ border-color:#e0b800; background:var(--remote); }
+  .badge.mode-in{ }
+  .badge.state-ongoing{ border-color:#2e7d32; background:var(--ok); }
+  .badge.state-upcoming{ border-color:#1976d2; background:var(--soon); }
+  .badge.state-past{ border-color:#b0bec5; background:var(--past); }
+
+  .hw{ margin-top:8px; font-size:13px; background:#f9fafb; border:1px dashed var(--line); padding:8px; border-radius:12px; }
+
+  /* BREAK CARD / HOLIDAY */
+  .break-card{
+    border:1px dashed var(--line); border-radius:16px; background:#fafbfc; color:#6b717a;
+    padding:12px; display:flex; align-items:center; gap:10px; justify-content:space-between;
+  }
+  .holiday{
+    border:1px dashed var(--line); border-radius:16px; background:#fafbfc; color:#6b717a;
+    padding:16px; text-align:center; font-weight:600;
+  }
+
+  /* header above results */
+  .hdr{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding-bottom:8px; border-bottom:1px dashed var(--line); margin-bottom:12px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-  <div class="grid cols-2">
-    <div class="card">
-      <h1>Расписание по группе</h1>
-      <div id="setup" style="margin-bottom:12px;">
-        <label>Группа:
-          <input type="text" id="groupInput" placeholder="ИСП-31">
-        </label>
-        <button onclick="saveGroup()">Сохранить</button>
-        <span id="groupStatus" class="muted"></span>
-      </div>
-      <div id="schedule"></div>
+
+<!-- TOP SEARCH -->
+<div class="glass pad">
+  <div class="topbar">
+    <div class="field" style="grid-column: 1 / -1;">
+      <label class="label">Поиск по группе, преподавателю или предмету</label>
+      <input id="inpGlobal" class="input" placeholder="Номер группы / Фамилия преподавателя / Название предмета" autocomplete="off">
     </div>
 
-    <div class="card">
-      <h2>Инструменты преподавателя</h2>
-      <div class="muted" style="margin-bottom:8px;">Требуется авторизация преподавателя</div>
-      <div id="teacherTools"></div>
+    <div class="chips" id="chips"></div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn secondary" id="btnSaveGroup" title="Сохранить группу">Сохранить группу</button>
+      <button class="btn" id="btnIcs">Скачать ICS</button>
     </div>
   </div>
+  <div id="topNote" class="muted" style="margin-top:6px; min-height:18px;"></div>
+</div>
+
+<!-- MAIN + SIDEBAR -->
+<div class="main-grid" style="margin-top:16px;">
+  <!-- RESULTS -->
+  <div class="glass results">
+    <div class="hdr">
+      <div>
+        <h2 style="margin:0">Результаты</h2>
+        <div id="subtitle" class="muted">Наберите в поиске и выберите вариант из списка</div>
+      </div>
+      <div id="totalInfo" class="muted"></div>
+    </div>
+    <div id="results"></div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="glass sidebar">
+    <h3 style="margin-top:0;">Период</h3>
+    <div class="seg">
+      <label><input type="radio" name="period" value="today" checked><span class="pill">Сегодня</span></label>
+      <label><input type="radio" name="period" value="week"><span class="pill">Неделя</span></label>
+      <label><input type="radio" name="period" value="range"><span class="pill">Период</span></label>
+    </div>
+    <div class="dates">
+      <div class="date-input"><label class="muted">C</label><input id="dateStart" type="date" disabled></div>
+      <div class="date-input"><label class="muted">По</label><input id="dateEnd" type="date" disabled></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Autocomplete portal root -->
+<div id="acPortal" class="ac-portal">
+  <div id="acList" class="ac-list"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  function showInfo(msg){ document.getElementById("groupStatus").textContent = msg; }
+/* ===== helpers ===== */
+const $ = s=>document.querySelector(s);
+const $$ = s=>Array.from(document.querySelectorAll(s));
+function fmtDate(d){ return d.toISOString().slice(0,10); }
+function mondayOf(date){ const d=new Date(date); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d; }
+function weekRangeAround(date){ const s=mondayOf(date); const e=new Date(s); e.setDate(s.getDate()+6); return {start:fmtDate(s), end:fmtDate(e)}; }
+function debounce(fn,ms=220){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 
-  async function saveGroup(){
-    const code = document.getElementById("groupInput").value.trim();
-    if(!code){ showInfo("Укажите код группы"); return; }
-    const r = await fetch("/api/prefs/set_group/?group="+encodeURIComponent(code));
-    if(!r.ok){ showInfo("Ошибка: "+await r.text()); return; }
-    showInfo("Группа сохранена: "+code);
-    await loadSchedule();
-    await renderTeacherTools();
+/* ===== state ===== */
+let selected = { groupLabel:null, teacherId:null, teacherLabel:null, disciplineId:null, disciplineLabel:null };
+
+/* ===== chips ===== */
+function renderChips(){
+  const c = $("#chips"); c.innerHTML = "";
+  if(selected.groupLabel){
+    c.insertAdjacentHTML("beforeend", `<span class="chip">Группа: ${selected.groupLabel} <button aria-label="Удалить" onclick="clearGroup()">×</button></span>`);
+  }
+  if(selected.teacherId){
+    c.insertAdjacentHTML("beforeend", `<span class="chip">Преподаватель: ${selected.teacherLabel} <button aria-label="Удалить" onclick="clearTeacher()">×</button></span>`);
+  }
+  if(selected.disciplineId){
+    c.insertAdjacentHTML("beforeend", `<span class="chip">Предмет: ${selected.disciplineLabel} <button aria-label="Удалить" onclick="clearDiscipline()">×</button></span>`);
+  }
+}
+window.clearGroup = ()=>{ selected.groupLabel=null; renderChips(); loadSchedule(); };
+window.clearTeacher = ()=>{ selected.teacherId=null; selected.teacherLabel=null; renderChips(); loadSchedule(); };
+window.clearDiscipline = ()=>{ selected.disciplineId=null; selected.disciplineLabel=null; renderChips(); loadSchedule(); };
+
+/* ===== autocomplete (unified, portal to body) ===== */
+(function bindUnifiedAutocomplete(){
+  const input = $("#inpGlobal"); const portal = $("#acPortal"); const dd = $("#acList");
+  let items=[], idx=-1, open=false;
+
+  function positionPortal(){
+    if(!open) return;
+    const r = input.getBoundingClientRect();
+    dd.style.left = (r.left + window.scrollX) + "px";
+    dd.style.top  = (r.bottom + window.scrollY + 6) + "px";
+    dd.style.width = r.width + "px";
+  }
+  const onScrollOrResize = ()=>positionPortal();
+
+  function show(){
+    if(!items.length){ dd.style.display="block"; dd.innerHTML=`<div class="ac-empty">Нет совпадений</div>`; }
+    else dd.style.display="block";
+    open=true; positionPortal();
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize, true);
+  }
+  function hide(){
+    open=false; dd.style.display="none"; idx=-1;
+    window.removeEventListener('scroll', onScrollOrResize, true);
+    window.removeEventListener('resize', onScrollOrResize, true);
   }
 
-  async function loadSchedule(){
+  function groupTitle(type){ return type==="group"?"Группы":(type==="teacher"?"Преподаватели":"Предметы"); }
+  function render(){
+    if(!items.length){ dd.innerHTML=`<div class="ac-empty">Нет совпадений</div>`; show(); return; }
+    const order=["group","teacher","discipline"];
+    let html="";
+    for(const t of order){
+      const part=items.filter(x=>x.type===t);
+      if(!part.length) continue;
+      html+=`<div class="ac-group">${groupTitle(t)}</div>`;
+      html+=part.map(it=>{
+        const i=items.indexOf(it);
+        return `<div class="ac-item ${i===idx?'active':''}" data-i="${i}">
+          <span>${it.label}</span><small>${it.sub||""}</small></div>`;
+      }).join("");
+    }
+    dd.innerHTML=html; show();
+  }
+
+  dd.addEventListener("mousedown", e=>{
+    const el=e.target.closest(".ac-item"); if(!el) return;
+    pick(items[+el.dataset.i]); hide();
+  });
+
+  async function query(q){
+    const [g,t,d] = await Promise.all([
+      fetch(`/api/suggest/groups/?q=${encodeURIComponent(q)}`).then(r=>r.json()),
+      fetch(`/api/suggest/teachers/?q=${encodeURIComponent(q)}`).then(r=>r.json()),
+      fetch(`/api/suggest/disciplines/?q=${encodeURIComponent(q)}`).then(r=>r.json()),
+    ]);
+    return [
+      ...g.map(x=>({type:"group", id:x.id, label:x.label})),
+      ...t.map(x=>({type:"teacher", id:x.id, label:x.label})),
+      ...d.map(x=>({type:"discipline", id:x.id, label:x.label})),
+    ].slice(0,30);
+  }
+
+  function pick(it){
+    input.value="";
+    if(it.type==="group"){ selected.groupLabel=it.label; }
+    if(it.type==="teacher"){ selected.teacherId=it.id; selected.teacherLabel=it.label; }
+    if(it.type==="discipline"){ selected.disciplineId=it.id; selected.disciplineLabel=it.label; }
+    renderChips(); loadSchedule();
+  }
+
+  input.addEventListener("input", debounce(async e=>{
+    const q=e.target.value.trim();
+    if(!q){ items=[]; render(); return; }
+    items = await query(q); idx = items.length?0:-1; render();
+  }));
+  input.addEventListener("keydown", e=>{
+    if(dd.style.display!=="block") return;
+    if(e.key==="ArrowDown"){ idx=Math.min(items.length-1, idx+1); render(); e.preventDefault(); }
+    if(e.key==="ArrowUp"){ idx=Math.max(0, idx-1); render(); e.preventDefault(); }
+    if(e.key==="Enter"){ if(items[idx]){ pick(items[idx]); hide(); e.preventDefault(); } }
+    if(e.key==="Escape"){ hide(); }
+  });
+  input.addEventListener("blur", ()=> setTimeout(hide, 120));
+})();
+
+/* ===== period controls (instant refresh) ===== */
+function currentPeriod(){
+  const mode = $$("input[name='period']").find(x=>x.checked).value;
+  if(mode==="today"){ const d=new Date(); return {mode,start:fmtDate(d), end:fmtDate(d)}; }
+  if(mode==="week"){ const {start,end}=weekRangeAround(new Date()); return {mode,start,end}; }
+  return {mode:"range", start:$("#dateStart").value, end:$("#dateEnd").value};
+}
+$$("input[name='period']").forEach(r=>{
+  r.addEventListener("change", ()=>{
+    const isRange = r.value==="range" && r.checked;
+    $("#dateStart").disabled = !isRange;
+    $("#dateEnd").disabled = !isRange;
+    loadSchedule(); // мгновенно
+  });
+});
+$("#dateStart").addEventListener("change", ()=> loadSchedule());
+$("#dateEnd").addEventListener("change", ()=> loadSchedule());
+
+/* ===== preferred group boot ===== */
+(async function bootPref(){
+  try{
     const pref = await fetch("/api/prefs/get_group/").then(r=>r.json());
-    const box = document.getElementById("schedule");
-    if(!pref.group){ box.innerHTML = "<p class='muted'>Группа не выбрана</p>"; return; }
+    if(pref.group){
+      selected.groupLabel = pref.group;
+      $("#topNote").textContent = "Сохранённая группа для этого устройства";
+      renderChips();
+      loadSchedule(); // сразу показываем
+    }
+  }catch(e){}
+})();
+$("#btnSaveGroup").addEventListener("click", async ()=>{
+  const code = selected.groupLabel || ($("#inpGlobal").value.trim());
+  if(!code){ $("#topNote").textContent="Введите/выберите группу"; return; }
+  const r=await fetch("/api/prefs/set_group/?group="+encodeURIComponent(code));
+  $("#topNote").textContent = r.ok ? "Группа сохранена" : "Ошибка сохранения";
+});
 
-    const r = await fetch("/api/schedule/today/?group="+encodeURIComponent(pref.group));
-    if(!r.ok){ box.innerHTML = "<p class='msg err'>"+(await r.text())+"</p>"; return; }
-    const data = await r.json();
+/* ===== ICS ===== */
+function makeIcsUrl(){
+  const p = currentPeriod();
+  if(selected.teacherId) return `/api/export/ics/?teacher=${selected.teacherId}&start=${p.start}&end=${p.end}`;
+  if(selected.groupLabel) return `/api/export/ics/?group=${encodeURIComponent(selected.groupLabel)}&start=${p.start}&end=${p.end}`;
+  return null;
+}
+$("#btnIcs").addEventListener("click", ()=>{
+  const url = makeIcsUrl(); if(!url) return alert("Сначала выберите группу или преподавателя");
+  const a=document.createElement('a'); a.href=url; a.click();
+});
 
-    let html = "<h2>Сегодня для "+pref.group+"</h2>";
-    html += "<table><tr><th>№</th><th>Время</th><th>Дисциплина</th><th>Преподаватель</th><th>Кабинет</th><th>Тип</th><th>ДЗ</th><th>ID</th></tr>";
-    for(const item of data){
-      if(item.break){
-        html += `<tr class="break"><td>${item.order}</td><td>${item.time}</td><td colspan="6">Перерыв</td><td></td></tr>`;
-      }else{
-        const cls = item.badge || item.status;
-        const room = item.is_remote ? `Дистанционно (${item.remote_platform||"—"})` : (item.room||"—");
-        html += `<tr class="${cls}">
-          <td>${item.order}</td>
-          <td>${item.time}</td>
-          <td>${item.discipline}</td>
-          <td>${item.teacher}</td>
-          <td>${room}</td>
-          <td>${item.lesson_type}</td>
-          <td>${item.homework||""}</td>
-          <td>${item.id||""}</td>
-        </tr>`;
+/* ===== load & render ===== */
+async function loadSchedule(){
+  const p = currentPeriod();
+
+  let url=null, title=null, isRange=(p.mode!=="today");
+  if(selected.teacherId){
+    title=`Преподаватель: ${selected.teacherLabel||selected.teacherId}`;
+    url = isRange
+      ? `/api/schedule/period/?teacher=${selected.teacherId}&start=${p.start}&end=${p.end}`
+      : `/api/schedule/today/?teacher=${selected.teacherId}`;
+  } else if(selected.groupLabel){
+    title=`Группа: ${selected.groupLabel}`;
+    url = isRange
+      ? `/api/schedule/period/?group=${encodeURIComponent(selected.groupLabel)}&start=${p.start}&end=${p.end}`
+      : `/api/schedule/today/?group=${encodeURIComponent(selected.groupLabel)}`;
+  } else {
+    $("#results").innerHTML = `<p class="muted">Выберите группу или преподавателя в поиске сверху.</p>`; 
+    $("#subtitle").textContent = "Наберите в поиске и выберите вариант из списка";
+    $("#totalInfo").textContent = "";
+    return;
+  }
+
+  $("#subtitle").textContent = `${title} • ${p.mode==='today'?'Сегодня':(p.start+' — '+p.end)}`;
+
+  const r = await fetch(url);
+  if(!r.ok){ $("#results").innerHTML = `<p class="muted">Ошибка: ${await r.text()}</p>`; return; }
+  let raw = await r.json();
+
+  // привести к формату по дням
+  let days = Array.isArray(raw) && raw.length && raw[0].date ? raw : [{date:p.start, items:raw}];
+
+  // применить фильтр по предмету (если выбран)
+  if(selected.disciplineId){
+    const name = (selected.disciplineLabel||"").toLowerCase();
+    days = days.map(d => ({
+      date:d.date,
+      items: d.items.filter(it => it.break ? true : String(it.discipline||"").toLowerCase().includes(name))
+    }));
+  }
+
+  // Нормализация: показывать "перерыв" только между занятиями + отмечать выходной
+  days = days.map(d => normalizeDay(d));
+
+  renderDays(days);
+}
+
+// оставляем только перерывы между занятиями и отмечаем выходной
+function normalizeDay(day){
+  const items = day.items || [];
+  const hasLesson = items.some(it => !it.break);
+  if(!hasLesson){
+    return { date: day.date, items: [], holiday: true };
+  }
+  const out = [];
+  // найдём индексы уроков
+  const lessonIdx = items.map((it,i)=>!it.break?i:null).filter(i=>i!==null);
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    if(!it.break){ out.push(it); continue; }
+    // break — оставить, только если слева и справа есть занятия (не просто пустой слот)
+    const prevLesson = lessonIdx.find(idx => idx < i);
+    const nextLesson = lessonIdx.find(idx => idx > i);
+    if(prevLesson !== undefined && nextLesson !== undefined){
+      // защитимся от нескольких подряд break — выводим только один «между»
+      const last = out[out.length-1];
+      if(!(last && last.break)){ out.push(it); }
+    }
+  }
+  return { date: day.date, items: out, holiday: false };
+}
+
+function badgeState(it){
+  const st = (it.badge || it.status || "").toLowerCase();
+  if(st==="ongoing") return `<span class="badge state-ongoing">идёт</span>`;
+  if(st==="upcoming") return `<span class="badge state-upcoming">будет</span>`;
+  return `<span class="badge state-past">прошло</span>`;
+}
+function badgeMode(it){
+  if(it.is_remote) return `<span class="badge mode-remote">СДО${it.remote_platform?": "+it.remote_platform:""}</span>`;
+  return `<span class="badge mode-in">Очно</span>`;
+}
+function badgeType(it){
+  const t = it.lesson_type || "";
+  return t ? `<span class="badge type">${t}</span>` : "";
+}
+
+function renderDays(days){
+  let total=0, html="";
+  for(const day of days){
+    html += `<div class="section">
+      <div class="day-header"><strong>${day.date}</strong><span class="muted">${day.holiday ? "Выходной" : ((day.items||[]).filter(x=>!x.break).length+" пар(ы)")} </span></div>`;
+
+    if(day.holiday){
+      html += `<div class="holiday">Выходной</div></div>`;
+      continue;
+    }
+
+    html += `<div class="cards">`;
+    for(const it of day.items){
+      if(it.break){
+        html += `<div class="break-card">
+          <div><strong>${it.order}</strong> пара</div>
+          <div class="muted">${it.time}</div>
+          <div>Перерыв</div>
+        </div>`;
+      } else {
+        const place = it.is_remote ? "Дистанционно" : (it.room || "—");
+        const building = it.is_remote ? (it.remote_platform||"") : (it.building||"");
+        html += `<div class="card">
+          <div class="slot">
+            <div class="slot-num">${it.order}</div>
+            <div class="time">${it.time}</div>
+          </div>
+          <div class="main">
+            <div class="title">${it.discipline}</div>
+            <div class="subtitle">${it.teacher||""}</div>
+            <div class="badges">
+              ${badgeType(it)} ${badgeMode(it)} ${badgeState(it)}
+            </div>
+            ${it.homework ? `<div class="hw">ДЗ: ${it.homework}</div>` : ``}
+          </div>
+          <div class="meta">
+            <div class="room">${place}</div>
+            <div class="building">${building}</div>
+          </div>
+        </div>`;
+        total++;
       }
     }
-    html += "</table>";
-    box.innerHTML = html;
+    html += `</div></div>`;
   }
+  $("#results").innerHTML = html || `<p class="muted">Ничего не найдено</p>`;
+  $("#totalInfo").textContent = total ? `Пар: ${total}` : "";
+}
 
-  // ===== инструменты преподавателя (сокращённо) =====
-  function getCookie(name){
-    const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
-    return v ? v.pop() : '';
-  }
-
-  async function renderTeacherTools(){
-    const pref = await fetch("/api/prefs/get_group/").then(r=>r.json());
-    const el = document.getElementById("teacherTools");
-    if(!pref.group){ el.innerHTML = "<p class='muted'>Сначала выберите группу слева</p>"; return; }
-    const lessons = await fetch("/api/schedule/today/?group="+encodeURIComponent(pref.group)).then(r=>r.json());
-    const ids = lessons.filter(x=>!x.break).map(x=>x.id).filter(Boolean);
-
-    el.innerHTML = `
-      <div class="muted" style="margin-bottom:6px;">ID пар на сегодня: ${ids.join(', ')||'—'}</div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input id="lessonId" placeholder="lesson_id">
-        <input id="hwText" placeholder="текст ДЗ" size="40">
-        <button onclick="sendHW()">Записать ДЗ</button>
-      </div>
-      <div style="margin-top:10px;">
-        <button onclick="loadFreeRooms()">Показать свободные кабинеты</button>
-        <div id="freeRooms" class="muted" style="margin-top:8px;"></div>
-      </div>
-      <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
-        <input id="roomId" placeholder="room_id">
-        <button onclick="changeRoom()">Сменить кабинет</button>
-      </div>
-    `;
-  }
-
-  async function sendHW(){
-    const lesson_id = document.getElementById("lessonId").value.trim();
-    const text = document.getElementById("hwText").value.trim();
-    if(!lesson_id || !text) return alert("Укажите lesson_id и текст.");
-    const form = new FormData(); form.append("lesson_id", lesson_id); form.append("text", text);
-    const r = await fetch("/api/teacher/homework/set/", {method:"POST", body:form, credentials:"same-origin", headers:{"X-CSRFToken": getCookie("csrftoken")}});
-    alert(await r.text());
-  }
-  async function loadFreeRooms(){
-    const lesson_id = document.getElementById("lessonId").value.trim();
-    if(!lesson_id) return alert("Укажите lesson_id.");
-    const r = await fetch("/api/teacher/room/free/?lesson_id="+encodeURIComponent(lesson_id), {credentials:"same-origin"});
-    if(!r.ok) return alert("Ошибка: "+(await r.text()));
-    const data = await r.json();
-    document.getElementById("freeRooms").innerHTML = "<pre>"+JSON.stringify(data,null,2)+"</pre>";
-  }
-  async function changeRoom(){
-    const lesson_id = document.getElementById("lessonId").value.trim();
-    const room_id = document.getElementById("roomId").value.trim();
-    if(!lesson_id || !room_id) return alert("Укажите оба id.");
-    const form = new FormData(); form.append("lesson_id", lesson_id); form.append("room_id", room_id);
-    const r = await fetch("/api/teacher/room/change/", {method:"POST", body:form, credentials:"same-origin", headers:{"X-CSRFToken": getCookie("csrftoken")}});
-    alert(await r.text());
-  }
-
-  // старт
-  loadSchedule().then(renderTeacherTools);
+/* init dates (week) */
+(function initPeriodUI(){
+  const {start,end}=weekRangeAround(new Date());
+  $("#dateStart").value = start; $("#dateEnd").value = end;
+})();
 </script>
 {% endblock %}

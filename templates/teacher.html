@@ -27,9 +27,15 @@ function defaultRange(){
 }
 defaultRange();
 
+function getCookie(name){
+  const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+
 async function loadAll(){
   const start = document.getElementById('start').value;
   const end   = document.getElementById('end').value;
+
   const s = await fetch(`/api/teacher/me/stats/?start=${start}&end=${end}`, {credentials:"same-origin"});
   if(!s.ok){ document.getElementById('stats').textContent = "Нет доступа или ошибка"; return; }
   const stats = await s.json();
@@ -38,20 +44,25 @@ async function loadAll(){
 
   const r = await fetch(`/api/teacher/me/schedule/?start=${start}&end=${end}`, {credentials:"same-origin"});
   const data = await r.json();
+
   let html = "";
   for(const day of data){
     html += `<h2>${day.date}</h2><table>
-      <tr><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Тип</th><th>Кабинет</th><th>ДЗ</th><th>ID</th></tr>`;
+      <tr><th>№</th><th>Время</th><th>Группа</th><th>Дисциплина</th><th>Тип</th><th>Кабинет</th><th>ДЗ</th><th>ID</th><th>Действия</th></tr>`;
     for(const item of day.items){
       if(item.break){
-        html += `<tr class="break"><td>${item.order}</td><td>${item.time}</td><td colspan="6">Перерыв</td><td></td></tr>`;
+        html += `<tr class="break"><td>${item.order}</td><td>${item.time}</td><td colspan="7">Перерыв</td><td></td></tr>`;
       }else{
         const cls = item.badge || item.status;
         const room = item.is_remote ? `Дистанционно (${item.remote_platform||"—"})` : (item.room||"—");
+        const actions = `
+          <button onclick="uiSetHw(${item.id})" title="Домашнее задание">ДЗ</button>
+          <button onclick="uiChangeRoom(${item.id})" title="Сменить кабинет">Каб.</button>`;
         html += `<tr class="${cls}">
           <td>${item.order}</td><td>${item.time}</td><td>${item.group}</td>
-          <td>${item.discipline}</td><td>${item.lesson_type}</td>
-          <td>${room}</td><td>${item.homework||""}</td><td>${item.id}</td>
+          <td>${item.discipline}</td><td>${item.lesson_type||""}</td>
+          <td>${room}</td><td>${item.homework||""}</td><td>${item.id||""}</td>
+          <td>${actions}</td>
         </tr>`;
       }
     }
@@ -59,6 +70,29 @@ async function loadAll(){
   }
   document.getElementById("calendar").innerHTML = html;
 }
+
+async function uiSetHw(lessonId){
+  const text = prompt("Текст ДЗ для занятия #"+lessonId+":", "");
+  if(text===null) return;
+  const form = new FormData(); form.append("lesson_id", lessonId); form.append("text", text);
+  const r = await fetch("/api/teacher/homework/set/", {method:"POST", body:form, credentials:"same-origin", headers:{"X-CSRFToken": getCookie("csrftoken")}});
+  alert(await r.text());
+  loadAll();
+}
+
+async function uiChangeRoom(lessonId){
+  const r = await fetch(`/api/teacher/room/free/?lesson_id=${lessonId}`, {credentials:"same-origin"});
+  if(!r.ok){ return alert(await r.text()); }
+  const data = await r.json();
+  if(!data.length){ return alert("Свободных кабинетов нет"); }
+  const choice = prompt("Введите room_id из списка:\n" + data.map(x=>`${x.id}: ${x.building} · ${x.name} (мест:${x.capacity}${x.computers?(", ПК:"+x.computers):""})`).join("\n"));
+  if(!choice) return;
+  const form = new FormData(); form.append("lesson_id", lessonId); form.append("room_id", choice);
+  const r2 = await fetch("/api/teacher/room/change/", {method:"POST", body:form, credentials:"same-origin", headers:{"X-CSRFToken": getCookie("csrftoken")}});
+  alert(await r2.text());
+  loadAll();
+}
+
 loadAll();
 </script>
 {% endblock %}

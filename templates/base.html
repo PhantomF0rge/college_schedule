@@ -38,7 +38,9 @@
     input, button, select { padding:8px 10px; border:1px solid var(--bd); border-radius:8px; background:#fff; }
     button { cursor:pointer; }
     .grid { display:grid; gap:12px; }
-    @media (min-width: 900px) { .grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 900px) { .grid.cols-2 { grid-template-columns: 1fr 1fr; } }4
+    .linkbtn{ background:transparent; border:0; padding:0 4px; color:#1f2024;
+          text-decoration:underline; cursor:pointer; font:inherit; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -48,11 +50,14 @@
     <a href="/" class="tag">Главная</a>
     <a href="/teacher/" class="tag">Преподаватель</a>
     <div class="spacer"></div>
-    {% if request.user.is_authenticated %}
-      <span class="muted">Вы вошли как {{ request.user.get_username }}</span>
-      <a href="/logout/" class="tag">Выйти</a>
+    {% if user.is_authenticated %}
+      <span>Вы вошли как {{ user.username }}</span>
+      <form action="{% url 'logout' %}" method="post" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="linkbtn">Выйти</button>
+      </form>
     {% else %}
-      <a href="/login/" class="tag">Войти</a>
+      <a href="{% url 'login' %}">Войти</a>
     {% endif %}
   </div>
 </header>

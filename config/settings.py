@@ -116,7 +116,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = "Europe/Helsinki"
+TIME_ZONE = "Europe/Kaliningrad"
 
 USE_I18N = True
 
@@ -149,3 +149,6 @@ ACADEMIC_MINUTES = 45
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+
+MEDIA_URL  = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

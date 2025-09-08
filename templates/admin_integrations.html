@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Интеграции — демо{% endblock %}
+{% block head %}
+<style>
+  .wrap{display:grid;gap:16px;grid-template-columns:1fr 360px}
+  @media (max-width: 980px){ .wrap{grid-template-columns:1fr} }
+  .glass{background:rgba(236,243,243,.66);backdrop-filter:blur(10px);border-radius:18px;border:1px solid rgba(255,255,255,.45);box-shadow:0 6px 24px rgba(31,32,36,.08)}
+  .pad{padding:14px}
+  .h{margin:0 0 8px}
+  .muted{color:#6b717a}
+  .input,select,button{padding:10px 12px;border-radius:12px;border:1px solid rgba(31,32,36,.14);background:#fff}
+  .row{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+  .row3{display:grid;gap:10px;grid-template-columns:1fr 1fr 1fr}
+  .btn{cursor:pointer;border-color:#cb1746}
+  .toggle{display:flex;align-items:center;gap:8px} 
+  .title{font-weight:700}
+  .cards{display:grid;gap:10px}
+  .card{border:1px solid rgba(31,32,36,.14);border-radius:14px;background:#fff;padding:12px}
+  .card .top{font-weight:700}
+  .card .sub{color:#6b717a;margin-top:2px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .badge{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid rgba(31,32,36,.14);background:#fff}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <aside class="glass pad">
+    <h3 class="h">Источник данных</h3>
+    <label class="toggle">
+      <input type="checkbox" id="toggleRanepa">
+      <span>ZF-RANEPA (демо) вместо локальной БД</span>
+    </label>
+    <hr>
+    <div class="row">
+      <div>
+        <label class="muted">Тип поиска</label>
+        <select id="kind">
+          <option value="group">Группа</option>
+          <option value="teacher">Преподаватель</option>
+        </select>
+      </div>
+      <div>
+        <label class="muted">Запрос</label>
+        <input id="q" class="input" placeholder="например: ИСП-31 / Иванов">
+      </div>
+    </div>
+
+    <div class="row3" style="margin-top:10px">
+      <div>
+        <label class="muted">Семестр</label>
+        <select id="sem">
+          <option value="1">1 (сент–дек)</option>
+          <option value="2">2 (янв–июн)</option>
+        </select>
+      </div>
+      <div>
+        <label class="muted">Неделя с</label>
+        <input id="start" type="date" class="input">
+      </div>
+      <div>
+        <label class="muted">Неделя по</label>
+        <input id="end" type="date" class="input">
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:10px">
+      <button id="btnFetch" class="btn">Подтянуть</button>
+      <button id="btnImport" class="btn" title="Записать в локальную БД" disabled>Импортировать</button>
+    </div>
+    <p id="note" class="muted" style="margin-top:8px"></p>
+  </aside>
+
+  <section class="glass pad">
+    <h3 class="h">Предпросмотр</h3>
+    <div id="preview" class="cards"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $=s=>document.querySelector(s);
+function fmt(d){ return d?.toISOString?.()? d.toISOString().slice(0,10): d; }
+function getCookie(name){
+  const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m?m.pop():"";
+}
+
+let TSMAP = {};     // order -> "HH:MM–HH:MM"
+let LAST_ITEMS = []; // для импорта
+
+// подхватим расписание звонков из студии (если доступно)
+(async ()=>{
+  try{
+    const opts = await fetch("/api/studio/options/").then(r=>r.json());
+    (opts.timeslots||[]).forEach(ts=>{
+      const s=(ts.start_time||"").slice(0,5), e=(ts.end_time||"").slice(0,5);
+      TSMAP[ts.order]=`${s}–${e}`;
+    });
+  }catch(_){}
+})();
+
+(function initWeek(){
+  const today=new Date();
+  const wd=(today.getDay()+6)%7;
+  const s=new Date(today); s.setDate(s.getDate()-wd);
+  const e=new Date(s); e.setDate(s.getDate()+5);   // суббота
+  $("#start").value = fmt(s);
+  $("#end").value   = fmt(e);
+})();
+
+$("#btnFetch").addEventListener("click", fetchDemo);
+$("#btnImport").addEventListener("click", importDemo);
+
+async function fetchDemo(){
+  $("#note").textContent = "Запрашиваю...";
+  $("#preview").innerHTML="";
+
+  const u = new URL("/api/integrations/ranepa/fetch/", location.origin);
+  u.searchParams.set("kind", $("#kind").value);
+  u.searchParams.set("q", $("#q").value.trim());        // МОЖНО пустым => «всё»
+  u.searchParams.set("sem", $("#sem").value);
+  u.searchParams.set("start", $("#start").value);
+  u.searchParams.set("end", $("#end").value);
+
+  const r = await fetch(u);
+  if(!r.ok){ $("#note").textContent = "Ошибка: " + await r.text(); return; }
+  const data = await r.json();
+  const items = data.items || [];
+  LAST_ITEMS = items;
+  $("#btnImport").disabled = !items.length;
+
+  const box = $("#preview");
+  for(const it of items){
+    const time = TSMAP[it.order] || (it.time||"");
+    const building = it.is_remote ? null : deriveBuilding(it);
+    box.insertAdjacentHTML("beforeend", cardHTML(it, time, building));
+  }
+  $("#note").textContent = `Найдено занятий: ${items.length}${$("#q").value.trim() ? "" : " (вся неделя)"}`;
+}
+
+function deriveBuilding(it){
+  if(it.is_remote) return null;
+  const room = String(it.room||"").trim();
+  if(/^\d+$/.test(room)){
+    const n = parseInt(room,10);
+    return n < 100 ? "Колледж" : "Высшее Образование";
+  }
+  return it.building || null;
+}
+
+function safe(v){ return v==null ? "" : v; }
+
+function norm(s){ return (s||"").replace(/\u00A0/g," ").replace(/\s+/g," ").trim(); }
+
+function cardHTML(it, time, building){
+  const when = time ? time : (it.order ? `пара ${norm(it.order)}` : "");
+  const subj = norm(it.discipline);
+  const who  = [norm(it.teacher), norm(it.group)].filter(Boolean).join(" · ");
+  const roomBadge = it.is_remote ? "СДО" : (norm(it.room) ? `Ауд. ${norm(it.room)}` : "");
+  const bldgBadge = (!it.is_remote && norm(building)) ? norm(building) : "";
+  return `
+    <div class="card">
+      <div class="top">${norm(it.date)}${when?` • ${when}`:""} • ${subj}</div>
+      <div class="sub">${who}</div>
+      <div class="badges">
+        ${norm(it.lesson_type)?`<span class="badge">${norm(it.lesson_type)}</span>`:""}
+        ${roomBadge?`<span class="badge">${roomBadge}</span>`:""}
+        ${bldgBadge?`<span class="badge">${bldgBadge}</span>`:""}
+      </div>
+    </div>
+  `;
+}
+
+async function importDemo(){
+  if(!LAST_ITEMS.length) return;
+  $("#note").textContent = "Импортирую...";
+  const meta = {
+    start: $("#start").value,
+    end:   $("#end").value,
+    kind:  $("#kind").value,
+    q:     $("#q").value.trim()
+  };
+  const r = await fetch("/api/integrations/ranepa/import/", {
+    method:"POST",
+    headers: {"Content-Type":"application/json","X-CSRFToken": getCookie("csrftoken")},
+    body: JSON.stringify({items: LAST_ITEMS, meta})
+  });
+  if(!r.ok){ $("#note").textContent="Ошибка импорта: "+await r.text(); return; }
+  const res = await r.json();
+  const t = res.totals || {};
+  $("#note").innerHTML = `Импорт: создано ${t.created||0}, обновлено ${t.updated||0}, пропущено ${t.skipped||0}, ошибок ${t.errors||0}`
+    + (res.log_url ? ` — <a href="${res.log_url}" target="_blank">Скачать отчёт</a>` : "");
+}
+</script>
+{% endblock %}

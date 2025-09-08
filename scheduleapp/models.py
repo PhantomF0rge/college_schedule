@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from directory.models import Room, LessonType, Discipline, Teacher, StudentGroup
 from django.core.exceptions import ValidationError
+from django.conf import settings
 
 class TimeSlot(models.Model):
     # порядковый номер пары в дне: 1,2,3...
@@ -85,3 +86,34 @@ class HomeworkItem(models.Model):
 
     def __str__(self):
         return f"ДЗ: {self.lesson}"
+
+class ImportJob(models.Model):
+    SOURCE_CHOICES = [
+        ("RANEPA", "RANEPA"),
+        ("OTHER", "Other"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="Пользователь"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Создано")
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default="RANEPA", verbose_name="Источник")
+
+    # что запрашивали / мета
+    params = models.JSONField(default=dict, blank=True, verbose_name="Параметры запроса")
+    # сводные итоги: created/updated/skipped/errors + reasons
+    totals = models.JSONField(default=dict, blank=True, verbose_name="Итоги")
+    reasons = models.JSONField(default=dict, blank=True, verbose_name="Причины")
+    samples = models.JSONField(default=list, blank=True, verbose_name="Примеры проблемных записей")
+
+    # относительный путь к файлу лога в MEDIA_ROOT (например: import_logs/ranepa_YYYY.json)
+    log_file = models.CharField(max_length=255, blank=True, verbose_name="Файл лога")
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Импорт"
+        verbose_name_plural = "Импорты"
+
+    def __str__(self):
+        return f"[{self.source}] {self.created_at:%Y-%m-%d %H:%M}"
