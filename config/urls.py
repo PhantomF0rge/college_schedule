@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth import views as auth_views
@@ -53,8 +53,15 @@ def admin_studio_page(request):
 
 urlpatterns = [
     path("", index),
-    path("admin/generator/", admin_generator_page, name="admin_generator"),
-    path("admin/overview/", admin_overview_page, name="admin_overview"),
+    re_path(r"^admin/generator/?$", admin_generator_page, name="admin_generator"),
+    re_path(r"^admin/overview/?$",  admin_overview_page,  name="admin_overview"),
+    re_path(r"^admin/studio/?$",    admin_studio_page,    name="admin_studio"),
+
+    # алиасы на случай конфликтов/отладки (необязательно)
+    path("generator/", admin_generator_page),
+    path("overview/",  admin_overview_page),
+    path("studio/",    admin_studio_page),
+    
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
     path("login/", __import__("django.contrib.auth.views").contrib.auth.views.LoginView.as_view(template_name="login.html")),

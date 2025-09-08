@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}Студия данных (админ){% endblock %}
+
+{% block head %}
+<style>
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .tabbtn { padding:6px 10px; border:1px solid var(--bd); border-radius:999px; background:#fff; cursor:pointer; }
+  .tabbtn.active { background:#eef; border-color:#bcd; }
+  .studio { display:grid; gap:12px; }
+  @media (min-width: 1000px) { .studio { grid-template-columns: 2fr 1fr; } }
+  .tablewrap { overflow:auto; }
+  .editor label { display:block; margin-bottom:8px; }
+  .editor input, .editor select, .editor button, .editor textarea { width:100%; }
+  .editor .row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+  .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .pill { font-size:12px; padding:2px 8px; border:1px solid var(--bd); border-radius:999px; background:#fff; }
+  .toast { position:fixed; right:16px; bottom:16px; background:#111; color:#fff; padding:10px 12px; border-radius:10px; opacity:.9; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Студия данных</h1>
+  <div class="tabs" id="tabs"></div>
+  <div id="status" class="muted"></div>
+
+  <div class="studio">
+    <div class="card">
+      <div class="toolbar">
+        <span class="pill" id="listTitle">—</span>
+        <input id="searchBox" placeholder="Поиск..." oninput="applySearch()" style="max-width:260px;">
+        <button onclick="reloadList()">Обновить</button>
+      </div>
+      <div class="tablewrap">
+        <table id="dataTable">
+          <thead><tr id="theadRow"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card editor">
+      <h2 id="editorTitle" style="margin-top:0;">Добавить</h2>
+      <form id="editorForm" onsubmit="return saveForm()">
+        <div id="formFields"></div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button type="submit" id="btnSave">Сохранить</button>
+          <button type="button" onclick="resetForm()">Очистить</button>
+          <button type="button" id="btnDelete" style="display:none;" onclick="deleteCurrent()">Удалить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" style="display:none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/** ======= Настройки вкладок и форм ======= */
+const TABS = {
+  teachers: {
+    title: "Преподаватели",
+    listUrl: "/api/studio/teachers/",
+    create: (d)=>apiJSON("/api/studio/teachers/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/teachers/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/teachers/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60}, {k:"full_name",t:"ФИО"}
+    ],
+    form: [
+      {k:"full_name",t:"ФИО",type:"text",req:true},
+    ],
+    mapRow: r => r
+  },
+  buildings: {
+    title: "Здания",
+    listUrl: "/api/studio/buildings/",
+    create: (d)=>apiJSON("/api/studio/buildings/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/buildings/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/buildings/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60}, {k:"name",t:"Название"}
+    ],
+    form: [
+      {k:"name",t:"Название",type:"text",req:true},
+    ],
+    mapRow: r => r
+  },
+  rooms: {
+    title: "Кабинеты",
+    listUrl: "/api/studio/rooms/",
+    create: (d)=>apiJSON("/api/studio/rooms/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/rooms/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/rooms/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60}, {k:"name",t:"Ауд."}, {k:"building__name",t:"Корпус"},
+      {k:"room_type__name",t:"Тип"}, {k:"capacity",t:"Мест",w:80}, {k:"computers",t:"ПК",w:80}
+    ],
+    form: [
+      {k:"name",t:"Аудитория",type:"text",req:true},
+      {k:"building_id",t:"Корпус",type:"select",src:"buildings",lab:"name",val:"id",req:true},
+      {k:"room_type_id",t:"Тип аудитории",type:"select",src:"room_types",lab:"name",val:"id"},
+      {k:"capacity",t:"Вместимость",type:"number"},
+      {k:"computers",t:"Компьютеры",type:"number"},
+    ],
+    mapRow: r => r
+  },
+  groups: {
+    title: "Группы",
+    listUrl: "/api/studio/groups/",
+    create: (d)=>apiJSON("/api/studio/groups/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/groups/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/groups/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60}, {k:"code",t:"Код"}, {k:"size",t:"Размер",w:80}, {k:"department",t:"Отделение"}
+    ],
+    form: [
+      {k:"code",t:"Код",type:"text",req:true},
+      {k:"size",t:"Размер",type:"number"},
+      {k:"department",t:"Отделение",type:"text"},
+    ],
+    mapRow: r => r
+  },
+  disciplines: {
+    title: "Дисциплины",
+    listUrl: "/api/studio/disciplines/",
+    create: (d)=>apiJSON("/api/studio/disciplines/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/disciplines/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/disciplines/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60}, {k:"title",t:"Название"}, {k:"delivery_mode",t:"Формат",w:120},
+      {k:"default_lesson_type_id",t:"Тип(ID)",w:100}, {k:"required_room_type_id",t:"Тип аудит.(ID)",w:140},
+      {k:"requires_computers",t:"ПК?",w:80}
+    ],
+    form: [
+      {k:"title",t:"Название",type:"text",req:true},
+      {k:"delivery_mode",t:"Формат",type:"select",options:[
+        {id:"in_person", name:"Очная"}, {id:"remote", name:"Дистанционная"}, {id:"mixed", name:"Смешанная"}
+      ]},
+      {k:"default_lesson_type_id",t:"Тип занятия",type:"select",src:"lesson_types",lab:"name",val:"id",allowEmpty:true},
+      {k:"required_room_type_id",t:"Тип аудитории (требуется)",type:"select",src:"room_types",lab:"name",val:"id",allowEmpty:true},
+      {k:"requires_computers",t:"Нужны ПК",type:"checkbox"},
+    ],
+    mapRow: r => r
+  },
+  lessontypes: {
+    title: "Типы занятий",
+    listUrl: "/api/studio/lessontypes/",
+    create: (d)=>apiJSON("/api/studio/lessontypes/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/lessontypes/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/lessontypes/${id}/`,"DELETE"),
+    columns: [{k:"id",t:"ID",w:60},{k:"name",t:"Название"}],
+    form: [{k:"name",t:"Название",type:"text",req:true}],
+    mapRow: r => r
+  },
+  assignments: {
+    title: "Назначения (кто ведёт у кого)",
+    listUrl: "/api/studio/assignments/",
+    create: (d)=>apiJSON("/api/studio/assignments/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/assignments/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/assignments/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60},
+      {k:"group__code",t:"Группа",w:110},
+      {k:"discipline__title",t:"Дисциплина"},
+      {k:"teacher__full_name",t:"Преподаватель"}
+    ],
+    form: [
+      {k:"group_id",t:"Группа",type:"select",src:"groups",lab:"code",val:"id",req:true},
+      {k:"discipline_id",t:"Дисциплина",type:"select",src:"disciplines",lab:"title",val:"id",req:true},
+      {k:"teacher_id",t:"Преподаватель",type:"select",src:"teachers",lab:"full_name",val:"id",req:true},
+    ],
+    mapRow: r => r
+  },
+  plans: {
+    title: "Учебные планы (часы)",
+    listUrl: "/api/studio/plans/",
+    create: (d)=>apiJSON("/api/studio/plans/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/plans/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/plans/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60},
+      {k:"group__code",t:"Группа",w:110},
+      {k:"discipline__title",t:"Дисциплина"},
+      {k:"hours_total",t:"Всего",w:80},
+      {k:"hours_assigned",t:"Назначено",w:100}
+    ],
+    form: [
+      {k:"group_id",t:"Группа",type:"select",src:"groups",lab:"code",val:"id",req:true},
+      {k:"discipline_id",t:"Дисциплина",type:"select",src:"disciplines",lab:"title",val:"id",req:true},
+      {k:"hours_total",t:"Часов всего",type:"number",req:true},
+    ],
+    mapRow: r => r
+  },
+  lessons: {
+    title: "Уроки (расписание)",
+    listUrl: "/api/studio/lessons/",
+    create: (d)=>apiJSON("/api/studio/lessons/","POST",d),
+    update: (id,d)=>apiJSON(`/api/studio/lessons/${id}/`,"PATCH",d),
+    remove: (id)=>apiJSON(`/api/studio/lessons/${id}/`,"DELETE"),
+    columns: [
+      {k:"id",t:"ID",w:60},
+      {k:"date",t:"Дата",w:110},
+      {k:"timeslot__order",t:"№",w:50},
+      {k:"group__code",t:"Группа",w:110},
+      {k:"discipline__title",t:"Дисциплина"},
+      {k:"teacher__full_name",t:"Преподаватель"},
+      {k:"lesson_type__name",t:"Тип",w:120},
+      {k:"room__building__name",t:"Корпус"},
+      {k:"room__name",t:"Ауд.",w:100},
+      {k:"is_remote",t:"Дист.",w:70}
+    ],
+    form: [
+      {k:"date",t:"Дата",type:"date",req:true},
+      {k:"timeslot_id",t:"Слот",type:"select",src:"timeslots",labSlot:true,val:"id",req:true},
+      {k:"group_id",t:"Группа",type:"select",src:"groups",lab:"code",val:"id",req:true},
+      {k:"discipline_id",t:"Дисциплина",type:"select",src:"disciplines",lab:"title",val:"id",req:true},
+      {k:"teacher_id",t:"Преподаватель",type:"select",src:"teachers",lab:"full_name",val:"id",req:true},
+      {k:"lesson_type_id",t:"Тип занятия",type:"select",src:"lesson_types",lab:"name",val:"id",allowEmpty:true},
+      {k:"is_remote",t:"Дистанционно",type:"checkbox"},
+      {k:"room_id",t:"Кабинет",type:"select",src:"rooms",labRoom:true,val:"id",allowEmpty:true},
+      {k:"remote_platform",t:"Платформа (опц.)",type:"text"},
+    ],
+    mapRow: r => r
+  },
+};
+
+let OPTIONS = {};        // словари для селектов
+let CURRENT_TAB = "teachers";
+let EDIT_ID = null;      // текущая запись для редактирования
+let ROWS = [];           // текущий список строк (для поиска)
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(()=> t.style.display='none', 2200);
+}
+
+function setStatus(msg){ document.getElementById('status').textContent = msg; }
+function getCSRF(){
+  const m = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)');
+  return m ? m.pop() : '';
+}
+async function apiJSON(url, method="GET", data=null){
+  const opt = { method, credentials:"same-origin", headers:{} };
+  if(method!=="GET" && data!==null){
+    opt.headers["Content-Type"]="application/json";
+    opt.headers["X-CSRFToken"]=getCSRF();
+    opt.body = JSON.stringify(data);
+  }
+  const r = await fetch(url, opt);
+  if(!r.ok){ throw new Error(await r.text()); }
+  return await r.json();
+}
+
+/** ====== Рендер вкладок и таблицы ====== */
+function renderTabs(){
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = "";
+  for(const k of Object.keys(TABS)){
+    const b = document.createElement('button');
+    b.className = 'tabbtn' + (k===CURRENT_TAB ? ' active':'');
+    b.textContent = TABS[k].title;
+    b.onclick = ()=> switchTab(k);
+    tabs.appendChild(b);
+  }
+}
+function switchTab(k){
+  CURRENT_TAB = k; EDIT_ID = null;
+  renderTabs();
+  renderTableHead();
+  resetForm();
+  reloadList();
+}
+function renderTableHead(){
+  const tr = document.getElementById('theadRow');
+  tr.innerHTML = "";
+  TABS[CURRENT_TAB].columns.forEach(c=>{
+    const th = document.createElement('th');
+    th.textContent = c.t;
+    if(c.w) th.style.width = c.w+"px";
+    tr.appendChild(th);
+  });
+  const th = document.createElement('th');
+  th.textContent = "Действия";
+  tr.appendChild(th);
+  document.getElementById('listTitle').textContent = TABS[CURRENT_TAB].title;
+}
+
+/** ====== Загрузка опций и списка ====== */
+async function loadOptions(){
+  OPTIONS = await apiJSON("/api/studio/options/");
+}
+async function reloadList(){
+  setStatus("Загрузка...");
+  const data = await apiJSON(TABS[CURRENT_TAB].listUrl);
+  ROWS = data || [];
+  renderRows(ROWS);
+  setStatus(`Загружено: ${ROWS.length}`);
+}
+function applySearch(){
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  if(!q){ renderRows(ROWS); return; }
+  const cols = TABS[CURRENT_TAB].columns.map(c=>c.k);
+  const filtered = ROWS.filter(row => cols.some(k => String(row[k]??'').toLowerCase().includes(q)));
+  renderRows(filtered);
+}
+function renderRows(rows){
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = "";
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    let html = "";
+    TABS[CURRENT_TAB].columns.forEach(c=>{
+      let val = r[c.k];
+      if(c.k==="is_remote") val = val ? "Да":"";
+      html += `<td>${val ?? ""}</td>`;
+    });
+    html += `<td><button onclick='editRow(${JSON.stringify(r)})'>✎</button>
+                 <button onclick='confirmDel(${r.id})'>✖</button></td>`;
+    tr.innerHTML = html;
+    tb.appendChild(tr);
+  });
+}
+
+/** ====== Форма: рендер/сохранение/удаление ====== */
+function resetForm(){
+  EDIT_ID = null;
+  document.getElementById('editorTitle').textContent = "Добавить";
+  document.getElementById('btnDelete').style.display = "none";
+  renderFormFields({});
+}
+function editRow(row){
+  EDIT_ID = row.id;
+  document.getElementById('editorTitle').textContent = "Редактировать #" + EDIT_ID;
+  document.getElementById('btnDelete').style.display = "inline-block";
+  renderFormFields(row);
+}
+function confirmDel(id){
+  if(!confirm("Удалить запись #"+id+"?")) return;
+  TABS[CURRENT_TAB].remove(id).then(()=>{ toast("Удалено"); reloadList(); resetForm(); })
+  .catch(e=> alert("Ошибка: "+e.message));
+}
+function saveForm(){
+  const payload = collectForm();
+  if(payload===null) return false;
+  const save = EDIT_ID ? TABS[CURRENT_TAB].update(EDIT_ID, payload) : TABS[CURRENT_TAB].create(payload);
+  save.then(()=>{
+    toast("Сохранено");
+    reloadList();
+    if(!EDIT_ID) resetForm();
+  }).catch(e=> alert("Ошибка: "+e.message));
+  return false;
+}
+function collectForm(){
+  const schema = TABS[CURRENT_TAB].form;
+  const data = {};
+  for(const f of schema){
+    const el = document.getElementById("fld_"+f.k);
+    if(f.type==="checkbox"){
+      data[f.k] = el.checked;
+    }else{
+      let v = el.value.trim();
+      if(f.req && !v){ alert("Заполните поле: "+f.t); return null; }
+      if(v==="") { data[f.k] = v; continue; }
+      if(f.type==="number") data[f.k] = Number(v);
+      else data[f.k] = v;
+    }
+  }
+  // авто: если is_remote=true — очищаем room_id
+  if(CURRENT_TAB==="lessons" && data.is_remote){
+    data.room_id = null;
+  }
+  return data;
+}
+
+/** ====== Рендер полей формы (с селектами) ====== */
+function renderFormFields(row){
+  const wrap = document.getElementById('formFields');
+  const schema = TABS[CURRENT_TAB].form;
+  wrap.innerHTML = "";
+  schema.forEach(f=>{
+    const id = "fld_"+f.k;
+    let ctrl = "";
+    if(f.type==="select"){
+      const options = f.options || (f.src ? OPTIONS[f.src] : []);
+      let optsHtml = "";
+      if(f.allowEmpty) optsHtml += `<option value="">—</option>`;
+      if(f.labSlot){ // timeslot: красивый лейбл
+        options.forEach(o=>{
+          const lbl = `${o.order} (${(o.start_time||"").slice(0,5)}–${(o.end_time||"").slice(0,5)})`;
+          optsHtml += `<option value="${o[f.val]}">${lbl}</option>`;
+        });
+      }else if(f.labRoom){
+        options.forEach(o=>{
+          const lbl = `${o["building__name"]||""} · ${o.name}`;
+          optsHtml += `<option value="${o[f.val]}">${lbl}</option>`;
+        });
+      }else{
+        options.forEach(o=>{
+          optsHtml += `<option value="${o[f.val]}">${o[f.lab]}</option>`;
+        });
+      }
+      ctrl = `<select id="${id}">${optsHtml}</select>`;
+    }else if(f.type==="checkbox"){
+      ctrl = `<input type="checkbox" id="${id}">`;
+    }else if(f.type==="number"){
+      ctrl = `<input type="number" id="${id}" step="1">`;
+    }else if(f.type==="date"){
+      ctrl = `<input type="date" id="${id}">`;
+    }else{
+      ctrl = `<input type="text" id="${id}">`;
+    }
+    const lab = document.createElement('label');
+    lab.innerHTML = `${f.t}${f.req? ' *':''}<br>${ctrl}`;
+    wrap.appendChild(lab);
+
+    // values
+    const el = document.getElementById(id);
+    let v = row[f.k];
+    if(v===undefined || v===null) v = "";
+    if(f.type==="checkbox") el.checked = !!row[f.k];
+    else el.value = v;
+  });
+
+  // динамика: для уроков — блокировка room при дистанте
+  if(CURRENT_TAB==="lessons"){
+    const chk = document.getElementById("fld_is_remote");
+    const roomSel = document.getElementById("fld_room_id");
+    function syncRoom(){ roomSel.disabled = chk.checked; }
+    chk.addEventListener("change", syncRoom);
+    syncRoom();
+  }
+}
+
+/** ====== Инициализация ====== */
+(async function boot(){
+  await loadOptions();
+  renderTabs();
+  renderTableHead();
+  resetForm();
+  reloadList();
+})();
+</script>
+{% endblock %}

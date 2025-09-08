@@ -48,4 +48,6 @@ urlpatterns = [
 
     path("studio/lessons/", views.studio_lessons),
     path("studio/lessons/<int:pk>/", views.studio_lessons_item),
+
+    path("studio/options/", views.studio_options),
 ]

@@ -5,8 +5,9 @@ from django.db import transaction
 from django.conf import settings
 from django.contrib.auth.decorators import user_passes_test
 from directory.models import (
-    StudentGroup, Discipline, Teacher, Room, TeachingAssignment, Holiday,
-    GroupDisciplinePlan, TeacherWorkload, TeacherDayOverride, BuildingPriority, LessonType
+    StudentGroup, Discipline, Teacher, Room, TeachingAssignment, Holiday, Building,
+    GroupDisciplinePlan, TeacherWorkload, TeacherDayOverride, BuildingPriority, LessonType,
+    RoomType
 )
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
@@ -1233,3 +1234,19 @@ def studio_lessons_item(request, pk):
     if "is_remote" in data: l.is_remote = bool(data["is_remote"])
     if "remote_platform" in data: l.remote_platform = data["remote_platform"].strip()
     l.save(); return _ok(model_to_dict(l))
+
+@login_required
+@user_passes_test(_is_admin)
+def studio_options(request):
+    """Справочники для селектов на странице Студии."""
+    data = {
+        "buildings":   list(Building.objects.values("id","name").order_by("name")),
+        "room_types":  list(RoomType.objects.values("id","name").order_by("name")),
+        "rooms":       list(Room.objects.select_related("building").values("id","name","building_id","building__name").order_by("building__name","name")),
+        "groups":      list(StudentGroup.objects.values("id","code").order_by("code")),
+        "teachers":    list(Teacher.objects.values("id","full_name").order_by("full_name")),
+        "disciplines": list(Discipline.objects.values("id","title").order_by("title")),
+        "lesson_types":list(LessonType.objects.values("id","name").order_by("name")),
+        "timeslots":   list(TimeSlot.objects.values("id","order","start_time","end_time").order_by("order")),
+    }
+    return JsonResponse(data)
