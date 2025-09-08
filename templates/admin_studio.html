@@ -239,6 +239,28 @@ function toast(msg){
   setTimeout(()=> t.style.display='none', 2200);
 }
 
+function getCookie(name){
+  const m = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+  return m ? m.pop() : '';
+}
+
+// Обертка над fetch, автоматически подставляет CSRF и cookies
+async function api(url, opts = {}) {
+  const o = { credentials: 'same-origin', ...opts };
+  const method = (o.method || 'GET').toUpperCase();
+  if (!['GET','HEAD','OPTIONS','TRACE'].includes(method)) {
+    o.headers = {
+      'X-CSRFToken': getCookie('csrftoken'),
+      ...(o.headers || {})
+    };
+    // если отправляешь JSON:
+    if (o.body && !(o.body instanceof FormData)) {
+      o.headers['Content-Type'] = o.headers['Content-Type'] || 'application/json';
+    }
+  }
+  return fetch(url, o);
+} // ←←← ЗАКРЫВАЕМ ФУНКЦИЮ api
+
 function setStatus(msg){ document.getElementById('status').textContent = msg; }
 function getCSRF(){
   const m = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)');
@@ -246,14 +268,24 @@ function getCSRF(){
 }
 async function apiJSON(url, method="GET", data=null){
   const opt = { method, credentials:"same-origin", headers:{} };
-  if(method!=="GET" && data!==null){
-    opt.headers["Content-Type"]="application/json";
-    opt.headers["X-CSRFToken"]=getCSRF();
-    opt.body = JSON.stringify(data);
+  // ВСЕГДА ставим CSRF на небезопасные методы, даже без тела
+  if (!['GET','HEAD','OPTIONS','TRACE'].includes(method.toUpperCase())) {
+    opt.headers["X-CSRFToken"] = getCSRF();
+  }
+  if (data !== null) {
+    if (data instanceof FormData) {
+      opt.body = data;
+    } else {
+      opt.headers["Content-Type"] = opt.headers["Content-Type"] || "application/json";
+      opt.body = JSON.stringify(data);
+    }
   }
   const r = await fetch(url, opt);
-  if(!r.ok){ throw new Error(await r.text()); }
-  return await r.json();
+  if (!r.ok) { throw new Error((await r.text()) || r.statusText); }
+  // На DELETE/204 тело может отсутствовать
+  if (r.status === 204) return {};
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('application/json') ? (await r.json()) : {};
 }
 
 /** ====== Рендер вкладок и таблицы ====== */
@@ -295,11 +327,15 @@ async function loadOptions(){
   OPTIONS = await apiJSON("/api/studio/options/");
 }
 async function reloadList(){
-  setStatus("Загрузка...");
-  const data = await apiJSON(TABS[CURRENT_TAB].listUrl);
-  ROWS = data || [];
-  renderRows(ROWS);
-  setStatus(`Загружено: ${ROWS.length}`);
+  try{
+    setStatus("Загрузка...");
+    const data = await apiJSON(TABS[CURRENT_TAB].listUrl);
+    ROWS = data || [];
+    renderRows(ROWS);
+    setStatus(`Загружено: ${ROWS.length}`);
+  }catch(e){
+    setStatus("Ошибка загрузки: "+e.message);
+  }
 }
 function applySearch(){
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
@@ -354,6 +390,10 @@ function saveForm(){
     if(!EDIT_ID) resetForm();
   }).catch(e=> alert("Ошибка: "+e.message));
   return false;
+}
+function deleteCurrent(){
+  if(!EDIT_ID) return;
+  confirmDel(EDIT_ID);
 }
 function collectForm(){
   const schema = TABS[CURRENT_TAB].form;

@@ -1,0 +1,211 @@
+{
+  "params": {
+    "start": "2025-09-08",
+    "end": "2025-09-13",
+    "kind": "group",
+    "q": ""
+  },
+  "report": {
+    "created": 111,
+    "updated": 1003,
+    "skipped": 0,
+    "errors": 262,
+    "reasons": {
+      "ValidationError": 262
+    },
+    "samples": [
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Элементы высшей математики",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Федорова Е.А.",
+          "group": "24БД2-о9, 25БД3-о11",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Русский язык",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Хилько О.И.",
+          "group": "25ПК1-о9,25ПК2-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Безопасность жизнедеятельности",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Зайко М.В.",
+          "group": "24ТГг2-о9,24ТГг3-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "<br>Практическое занятие",
+          "teacher": "Удалова О.Д.",
+          "group": "24ЭБ1-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "История",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Быкова Т.С.",
+          "group": "25БД1-о9,25БД2-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Физика",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Журавлева И.Г.",
+          "group": "25ИСПп1-о9,25ИСПп2-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Основы бухгалтерского учета",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Некрасова Е.В.",
+          "group": "24ТДк1-о9,24ТДк2-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Основы безопасности и защиты Родины",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Терещенко А.Ф.",
+          "group": "25ЮР3-о9,25ЮР4-о9",
+          "room": "35",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "История",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Смирнова В.В.",
+          "group": "25ИСПр3-о9,25ИИС1-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 2,
+          "time": null,
+          "discipline": "Химия",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Коротенко Т.И.",
+          "group": "24ПК1-о9,24ПК2-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 2,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "<br>Практическое занятие",
+          "teacher": "Удалова О.Д.",
+          "group": "24ЭБ2-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 2,
+          "time": null,
+          "discipline": "История",
+          "lesson_type": "<br>Потоковая лекция",
+          "teacher": "Смирнова В.В.",
+          "group": "25ТДк1-о9,25ТДк2-о9",
+          "room": null,
+          "building": null,
+          "is_remote": true,
+          "remote_platform": "СДО"
+        }
+      }
+    ]
+  }
+}

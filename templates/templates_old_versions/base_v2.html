@@ -1,0 +1,164 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Колледж — Расписание{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    :root{
+      --bg:#f5f5f7; --card:#fff; --text:#111; --muted:#666; --bd:#ddd;
+      --ok:#e8f5e9; --err:#ffebee; --link:#2563eb;
+      --past:#eee; --ongo:#c8f7c5; --up:#e3f2fd; --remote:#fff3cd; --break:#f9f9f9;
+      --glass: rgba(255,255,255,.58);
+      --glass-bd: rgba(0,0,0,.06);
+    }
+    *{ box-sizing: border-box; }
+    html, body { height:100%; }
+    html { background: var(--bg); }
+
+
+    /* Базовый фон страницы */
+    html{ background: var(--bg); }
+
+    /* Паттерн рендерим вне стэка body — ничего не перекроет */
+    html::before{
+      content:"";
+      position: fixed;     /* «прибит» к вьюпорту */
+      inset:0;
+      z-index:-1;          /* позади всего контента */
+      pointer-events:none; /* на всякий случай */
+      background-image: url("{% static 'img/pattern.png' %}");
+      background-repeat: repeat;
+      background-position: 0 0;
+      background-size: auto; /* не масштабируем тайл → без швов */
+    }
+
+    /* Сам body прозрачный, чтобы был виден html::before */
+    body{ background: transparent; }
+
+    /* Если твой тайл 1024×1024 и он слишком крупный на ретине,
+       можно аккуратно деликатно уменьшить РОВНО в 2 раза (без дробей): */
+    @media (min-resolution: 2dppx){
+      body::before{ background-size: 512px 512px; }
+    }
+
+    a{ color:var(--link); text-decoration:none; }
+
+    /* ===== Header (стекло при скролле) ===== */
+    header{
+      position: sticky; top:0; z-index: 20;
+      background: transparent;                 /* без линии/границы и без полосы на всех устройствах */
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      transition: background .25s ease, box-shadow .25s ease, border-color .25s ease, backdrop-filter .25s ease;
+    }
+    header.scrolled{
+      background: var(--glass);
+      border-bottom: 1px solid var(--glass-bd);
+      box-shadow: 0 10px 28px rgba(0,0,0,.06);
+      backdrop-filter: saturate(180%) blur(14px);
+      -webkit-backdrop-filter: saturate(180%) blur(14px);
+    }
+
+    .wrap{ max-width:1100px; margin:0 auto; padding:16px; }
+    .nav{ display:flex; gap:16px; align-items:center; }
+    .nav .spacer{ flex:1; }
+
+    /* ЛОГО вместо «Главная» */
+    .logo-link{ display:flex; align-items:center; padding:6px 8px; border-radius:8px; }
+    .logo{ display:block; height:28px; width:auto; }
+
+    main .card{ background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:16px; }
+    h1{ margin:0 0 12px; font-size:22px; }
+    h2{ margin:12px 0; font-size:18px; }
+    table{ border-collapse:collapse; width:100%; background:var(--card); }
+    th,td{ border:1px solid var(--bd); padding:8px; text-align:center; }
+    .muted{ color:var(--muted); }
+
+    .tag{
+      display:inline-block; padding:6px 12px; border-radius:999px;
+      border:1px solid var(--bd); background:#fff; font-size:14px; color:#1f2024;
+    }
+
+    .past{ background:var(--past); color:#555; }
+    .ongoing{ background:var(--ok); }
+    .upcoming{ background:var(--up); }
+    .remote{ background:var(--remote); }
+    .break{ background:var(--break); color:#555; font-style:italic; }
+
+    .messages{ margin:12px 0; }
+    .msg{ padding:10px; border-radius:10px; border:1px solid var(--bd); }
+    .msg.ok{ background:var(--ok); }
+    .msg.err{ background:var(--err); }
+
+    footer{ color:#777; padding:32px 0; }
+
+    input,button,select{ padding:8px 10px; border:1px solid var(--bd); border-radius:8px; background:#fff; }
+    button{ cursor:pointer; }
+
+    .grid{ display:grid; gap:12px; }
+    @media (min-width:900px){ .grid.cols-2{ grid-template-columns:1fr 1fr; } }
+
+    .linkbtn{
+      background:transparent; border:0; padding:0 4px; color:#1f2024;
+      text-decoration:underline; cursor:pointer; font:inherit;
+    }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<header id="siteHeader">
+  <div class="wrap nav">
+    <!-- ЛОГО (ссылка на главную) -->
+    <a href="/" class="logo-link" aria-label="Главная">
+      <img class="logo" src="{% static 'img/logo.svg' %}" alt="Колледж — расписание">
+    </a>
+
+    <!-- «Преподаватель» показываем только залогиненному -->
+    {% if user.is_authenticated %}
+      <a href="/teacher/" class="tag">Преподаватель</a>
+    {% endif %}
+
+    <div class="spacer"></div>
+
+    {% if user.is_authenticated %}
+      <span>Вы вошли как {{ user.username }}</span>
+      <form action="{% url 'logout' %}" method="post" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="linkbtn">Выйти</button>
+      </form>
+    {% else %}
+      <a href="{% url 'login' %}">Войти</a>
+    {% endif %}
+  </div>
+</header>
+
+<main class="wrap">
+  {% include "partials/_messages.html" %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="wrap">
+  <div class="muted">© {{ now|date:"Y" }} Колледж. Учебное расписание.</div>
+</footer>
+
+{% block scripts %}{% endblock %}
+
+<script>
+  // Делает шапку «стеклянной» при скролле
+  (function(){
+    const h = document.getElementById('siteHeader');
+    const onScroll = () => {
+      if (window.scrollY > 6) h.classList.add('scrolled');
+      else h.classList.remove('scrolled');
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, {passive:true});
+  })();
+</script>
+</body>
+</html>
