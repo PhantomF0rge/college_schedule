@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Технические работы{% endblock %}
+
+{% block head %}
+<style>
+  .center-wrap{ min-height: calc(100dvh - 140px); display:grid; place-items:center; padding:24px; }
+  .glass-card{
+    background: var(--glass-bg, color-mix(in srgb, var(--glass) 66%, transparent));
+    border:1px solid rgba(255,255,255,.45);
+    border-radius:22px;
+    box-shadow:
+      0 8px 28px rgba(31,32,36,.10),
+      0 0 0 1px rgba(255,255,255,.35) inset,
+      0 0 28px var(--glass-glow, color-mix(in srgb, var(--accent) 18%, transparent));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color:var(--ink);
+    padding: clamp(18px, 4vw, 32px);
+    max-width: 820px; width: 100%;
+  }
+  html[data-theme="dark"] .glass-card{
+    border-color: rgba(255,255,255,.08);
+    box-shadow:
+      0 16px 40px rgba(0,0,0,.45),
+      0 0 0 1px rgba(255,255,255,.06) inset,
+      0 0 32px var(--glass-glow, color-mix(in srgb, var(--accent) 28%, transparent));
+  }
+  .title{ margin:0 0 6px; font-weight:900; font-size: clamp(22px, 4.6vw, 32px); }
+  .lead{ margin:0 0 16px; color:var(--muted,#6b717a); }
+  .dot{
+    width:12px; height:12px; border-radius:50%;
+    background: var(--accent,#cb1746); box-shadow: 0 0 18px var(--accent,#cb1746);
+    margin-right:10px; flex:0 0 auto;
+  }
+  .row{ display:flex; align-items:center; gap:8px; margin:8px 0 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="center-wrap">
+  <div class="glass-card" role="status">
+    <h1 class="title">Технические работы</h1>
+    <p class="lead">{{ message|default:"Мы обновляем сервис. Пожалуйста, зайдите позже." }}</p>
+    <div class="row"><span class="dot"></span><span>Сайт скоро вернётся в строй.</span></div>
+  </div>
+</div>
+{% endblock %}
