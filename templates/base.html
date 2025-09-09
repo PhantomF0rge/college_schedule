@@ -160,6 +160,32 @@
       background: color-mix(in srgb, var(--accent) 16%, transparent);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
     }
+    /* ===== Mobile header adaptation (phones) ===== */
+    /* desktop defaults for new elements */
+    .theme-switch button .label{ display:inline; }
+    .tag.tag-cab{ gap:8px; }
+    .tag.tag-cab .ic{ width:16px; height:16px; display:block; }
+    .tag.tag-cab .txt{ display:inline; }
+
+    @media (max-width:640px){
+      header .wrap{ padding:8px 12px; }     /* хедер уже */
+      .nav{ gap:8px; }
+      .logo{ height:22px; }                 /* уменьшили логотип */
+
+      /* переключатель темы — только иконки */
+      .theme-switch{ padding:4px; }
+      .theme-switch button{ padding:6px; }
+      .theme-switch button .label{ display:none; }
+      .theme-switch button .theme-icon{ width:18px; height:18px; }
+
+      /* «Преподаватель» — только иконка (личный кабинет) */
+      .tag.tag-cab{ padding:6px; }
+      .tag.tag-cab .txt{ display:none; }
+      .tag.tag-cab .ic{ width:20px; height:20px; }
+
+      /* чутка сжали отступы справа у action-блока */
+      .nav-actions{ gap:6px !important; }
+    }
     .theme-icon{ width:16px; height:16px; display:block; }
 
     /* ===================== Main / Cards ===================== */
@@ -204,32 +230,34 @@
     <!-- Переключатель темы (Light / Dark / Auto) -->
     <div class="theme-switch" role="group" aria-label="Переключение темы">
       <button type="button" id="thLight" title="Светлая тема">
-        <!-- sun -->
         <svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 14.32l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM12 4V1h-0v3h0zm0 19v-3h0v3h0zM4 12H1v0h3v0zm19 0h-3v0h3v0zM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM19.16 6.76l1.42-1.42-1.8-1.79-1.41 1.41 1.79 1.8zM12 7a5 5 0 100 10 5 5 0 000-10z"/>
         </svg>
-        Светлая
+        <span class="label">Светлая</span>
       </button>
       <button type="button" id="thDark" title="Тёмная тема">
-        <!-- moon -->
         <svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
         </svg>
-        Тёмная
+        <span class="label">Тёмная</span>
       </button>
       <button type="button" id="thAuto" title="Авто">
-        <!-- asterisk/auto -->
         <svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M12 2l1.8 5.4L19 9l-5.2 1.6L12 16l-1.8-5.4L5 9l5.2-1.6L12 2zM4 20h16v2H4z"/>
         </svg>
-        Авто
+        <span class="label">Авто</span>
       </button>
     </div>
 
     <!-- Правый блок действий -->
     <div class="nav-actions" style="display:flex; gap:8px; align-items:center;">
       {% if user.is_authenticated %}
-        <a href="/teacher/" class="tag" title="Страница преподавателя">Преподаватель</a>
+        <a href="/teacher/" class="tag tag-cab" title="Личный кабинет" aria-label="Личный кабинет (Преподаватель)">
+          <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z"/>
+          </svg>
+          <span class="txt">Преподаватель</span>
+        </a>
         <form action="{% url 'logout' %}" method="post" style="display:inline;">
           {% csrf_token %}
           <button type="submit" class="btn btn-ghost" title="Выйти">Выйти</button>
