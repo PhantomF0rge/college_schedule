@@ -172,7 +172,7 @@
   .seg{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .seg .pill{
     display:inline-flex; align-items:center; gap:8px;
-    padding:8px 12px; background:#fff; border:1px solid var(--line);
+    padding:8px 12px; background:var(--card); border:1px solid var(--line);
     border-radius:999px; cursor:pointer; user-select:none;
   }
   .seg input{ display:none; }
@@ -191,7 +191,8 @@
   .dates{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .date-input{ display:flex; flex-direction:column; gap:4px; }
   .date-input input[type="date"]{
-    padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:#fff; width:100%;
+    padding:10px 12px; border:1px solid var(--line); border-radius:12px;
+    background:var(--card); color:var(--text); width:100%;
   }
   /* Дата: нормальный фон и текст в любой теме */
   .date-input input[type="date"]{
@@ -304,28 +305,49 @@
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding-bottom:8px; border-bottom:1px dashed var(--line); margin-bottom:12px;
   }
-  /* === MOBILE TUNING ==================================================== */
+  /* безопасность темы на мобильном крае */
+  :root{ --card: var(--card, #fff); --text: var(--ink);}
+  /* === PHONE — COMPACT CARDS (desktop look, scaled) ===================== */
   @media (max-width: 640px){
-    .pad, .results, .sidebar{ padding:12px; }
-    .chips{ gap:6px; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
-    .chip{ padding:5px 9px; font-size:13px; }
+    /* возвращаем поля вокруг контента */
+    main.wrap{ padding:12px; }
 
-    .daycard{ grid-template-columns:44px 1fr; border-radius:16px; }
-    .datebar{ padding:6px 0; }
-    .datebar .vtext{ font-size:11px; gap:4px; letter-spacing:.3px; }
+    /* нормальный зазор между секциями, не прилипают к краям */
+    .main-grid{ gap:12px; margin-top:12px !important; }
 
-    .card{
-      grid-template-columns: 42px 1fr;   /* компактнее слот */
-      padding:10px;
-      border-radius:14px;
+    /* стеклянные блоки остаются «карточками», как на десктопе */
+    .glass{ border-radius:16px; }
+    .glass.pad{ border-radius:16px; }
+    .glass.results, .glass.sidebar{
+      box-shadow:0 6px 18px rgba(31,32,36,.06);
+      /* НЕ убираем боковые границы и не делаем edge-to-edge */
     }
-    .slot-num{ width:34px; height:34px; font-size:14px; }
-    .time{ font-size:11px; }
 
-    .title{ font-size:15px; }
+    .results{ padding:12px; }
+    .sidebar{ padding:12px; }
+
+    /* день — компактная «папка» как на десктопе */
+    .daycard{
+      grid-template-columns:44px 1fr;
+      border-radius:16px;
+      /* оставляем стандартные границы/фон как в десктопе */
+    }
+    .datebar{ padding:6px 0; }
+    .daycontent{ padding:12px; }
+
+    /* карточки пар — такие же, только чуть меньше */
+    .cards{ gap:10px; }
+    .cards .card{ border-radius:16px; }
+    .card{
+      grid-template-columns:48px 1fr; /* уменьшили слот, но структура как на десктопе */
+      padding:12px;
+    }
+    .slot-num{ width:36px; height:36px; font-size:14px; }
+    .time{ font-size:12px; }
+    .title{ font-size:16px; }
     .subtitle{ font-size:13px; }
 
-    /* Главное — бэйджи в одну линию с горизонтальным скроллом */
+    /* бейджи — одной линией со скроллом, чтобы не было «лесенок» */
     .badges{
       flex-wrap:nowrap; white-space:nowrap;
       overflow-x:auto; gap:8px;
@@ -353,7 +375,6 @@
 
     <div style="display:flex; gap:10px; justify-content:flex-end;">
       <button class="btn secondary" id="btnSaveGroup" title="Сохранить группу">Сохранить группу</button>
-      <button class="btn" id="btnIcs">Скачать ICS</button>
     </div>
   </div>
   <div id="topNote" class="muted" style="margin-top:6px; min-height:18px;"></div>
