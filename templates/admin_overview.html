@@ -18,6 +18,14 @@
       <button onclick="loadTeacher()">Показать преподавателя</button>
       <button onclick="loadAll()">Снимок всех групп</button>
     </div>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+      <button onclick="downloadCSV()">CSV всех групп</button>
+      <button onclick="downloadTeacherICS()">ICS преподавателя</button>
+      <label>Группа:
+        <input id="groupForIcs" placeholder="ИСП-31" style="width:120px;">
+      </label>
+      <button onclick="downloadGroupICS()">ICS группы</button>
+    </div>
   </div>
 
   <div id="summary" class="muted" style="margin-top:10px;"></div>
@@ -64,6 +72,29 @@ loadTeachers();
 
 function rowClass(item){ return item.badge || item.status || ""; }
 
+function buildPeriod(){ 
+  const s = document.getElementById('start').value;
+  const e = document.getElementById('end').value;
+  return `start=${s}&end=${e}`;
+}
+function dl(url, filename){
+  const a = document.createElement('a');
+  a.href = url; a.download = filename || ""; document.body.appendChild(a); a.click(); a.remove();
+}
+function downloadCSV(){
+  dl(`/api/export/csv/?${buildPeriod()}`);
+}
+function downloadTeacherICS(){
+  const tid = document.getElementById('teacher').value;
+  if(!tid){ alert("Выберите преподавателя"); return; }
+  dl(`/api/export/ics/?teacher=${tid}&${buildPeriod()}`);
+}
+function downloadGroupICS(){
+  const g = document.getElementById('groupForIcs').value.trim();
+  if(!g){ alert("Укажите группу"); return; }
+  dl(`/api/export/ics/?group=${encodeURIComponent(g)}&${buildPeriod()}`);
+}
+
 function renderTeacherSchedule(days){
   let html = "";
   for(const day of (days||[])){
@@ -89,7 +120,6 @@ function renderTeacherSchedule(days){
 }
 
 function renderAllRows(rows){
-  // Группируем по дате
   const byDate = {};
   (rows||[]).forEach(r => { (byDate[r.date] ||= []).push(r); });
   let html = "";

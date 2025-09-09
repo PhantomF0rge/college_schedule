@@ -1,59 +1,243 @@
 {% load static %}
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="auto">
 <head>
   <meta charset="utf-8">
   <title>{% block title %}Колледж — Расписание{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
-    :root {
-      --bg:#f5f5f7; --card:#fff; --text:#111; --muted:#666; --bd:#ddd;
+    /* ===================== TOKENS / THEMES ===================== */
+    :root{
+      /* brand */
+      --accent:#cb1746;
+
+      /* surfaces & text (light) */
+      --bg:#f5f5f7;
+      --card:#ffffff;
+      --text:#111;
+      --muted:#666;
+      --bd:#ddd;
+
+      /* glass */
+      --glass: rgba(255,255,255,.58);
+      --glass-bd: rgba(0,0,0,.06);
+      --glass-glow: color-mix(in srgb, var(--accent) 16%, transparent);
+
+      /* status */
       --ok:#e8f5e9; --err:#ffebee; --link:#2563eb;
       --past:#eee; --ongo:#c8f7c5; --up:#e3f2fd; --remote:#fff3cd; --break:#f9f9f9;
+
+      /* background pattern files */
+      --pattern-light: url("{% static 'img/pattern-light.png' %}");
+      --pattern-dark:  url("{% static 'img/pattern-dark.png' %}");
+      --pattern: var(--pattern-light);
+
+      /* tile size (can be reduced on retina) */
+      --tile: auto;
     }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
-    a { color:var(--link); text-decoration: none; }
-    header { background:#fff; border-bottom:1px solid var(--bd); position: sticky; top:0; z-index:5; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
-    .nav { display:flex; gap:16px; align-items:center; }
-    .nav .spacer { flex:1; }
-    main .card { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:16px; }
-    h1 { margin:0 0 12px; font-size: 22px; }
-    h2 { margin:12px 0; font-size: 18px; }
-    table { border-collapse: collapse; width: 100%; background:var(--card); }
-    th, td { border:1px solid var(--bd); padding:8px; text-align:center; }
-    .muted { color:var(--muted); }
-    .tag { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--bd); background:#fff; font-size:12px; }
-    .past { background:var(--past); color:#555; }
-    .ongoing { background:var(--ongo); }
-    .upcoming { background:var(--up); }
-    .remote { background:var(--remote); }
-    .break { background:var(--break); color:#555; font-style: italic; }
-    .messages { margin:12px 0; }
-    .msg { padding:10px; border-radius:10px; border:1px solid var(--bd); }
-    .msg.ok { background:var(--ok); }
-    .msg.err { background:var(--err); }
-    footer { color:#777; padding:32px 0; }
-    input, button, select { padding:8px 10px; border:1px solid var(--bd); border-radius:8px; background:#fff; }
-    button { cursor:pointer; }
-    .grid { display:grid; gap:12px; }
-    @media (min-width: 900px) { .grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+
+    /* ---- Dark theme (applies when html[data-theme="dark"]) ---- */
+    html[data-theme="dark"]{
+      color-scheme: dark;
+      --bg:#0f1216;
+      --card:#1b1f25;
+      --text:#e9ebef;
+      --muted:#9aa3ae;
+      --bd:rgba(255,255,255,.12);
+
+      --glass: rgba(26,30,37,.56);
+      --glass-bd: rgba(255,255,255,.08);
+      --glass-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+
+      --ok:#17361b; --err:#3b1c22;
+      --past:#262a31; --ongo:#224022; --up:#102336; --remote:#2b2421; --break:#1f232a;
+
+      --pattern: var(--pattern-dark);
+      --link:#8ab4ff;
+    }
+
+    *{ box-sizing: border-box; }
+    html, body { height:100%; }
+    html{ background: var(--bg); }
+
+    /* ======= Endless patterned background (light/dark aware) ======= */
+    html::before{
+      content:"";
+      position: fixed;
+      inset:0;
+      z-index:-1;
+      pointer-events:none;
+      background-image: var(--pattern);
+      background-repeat: repeat;
+      background-position: 0 0;
+      background-size: var(--tile) var(--tile); /* auto by default */
+      opacity: .96; /* чуть смягчаем */
+    }
+    /* optional: shrink tile on retina to keep delicate feel */
+    @media (min-resolution: 2dppx){
+      :root{ --tile: auto; } /* если тайл 1024×1024 — можешь заменить на 512px */
+    }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: transparent;  /* показываем паттерн из html::before */
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    a{ color:var(--link); text-decoration:none; }
+
+    /* ===================== HEADER (Glass) ===================== */
+    header{
+      position: sticky; top:0; z-index: 20;
+      background: transparent;
+      border-bottom: 1px solid transparent;
+      transition: background .25s ease, box-shadow .25s ease, border-color .25s ease, backdrop-filter .25s ease;
+      backdrop-filter: none; -webkit-backdrop-filter: none;
+    }
+    header.scrolled{
+      background: var(--glass);
+      border-bottom: 1px solid var(--glass-bd);
+      box-shadow:
+        0 10px 28px rgba(0,0,0,.06),
+        0 0 22px var(--glass-glow);
+      backdrop-filter: saturate(160%) blur(14px);
+      -webkit-backdrop-filter: saturate(160%) blur(14px);
+    }
+    .wrap{ max-width:1100px; margin:0 auto; padding:16px; }
+    .nav{ display:flex; gap:12px; align-items:center; }
+    .nav .spacer{ flex:1; }
+
+    /* logo */
+    .logo-link{ display:flex; align-items:center; padding:6px 8px; border-radius:8px; }
+    .logo{ display:block; height:28px; width:auto; }
+
+    /* ===================== Buttons (unified look) ===================== */
+    .btn{
+      appearance:none; border:1px solid var(--bd); background:var(--card);
+      color:var(--text); padding:8px 12px; border-radius:999px; cursor:pointer;
+      font-weight:600; line-height:1; display:inline-flex; align-items:center; gap:8px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.12) inset;
+      transition: transform .05s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .btn:hover{ box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .btn:active{ transform: translateY(1px); }
+
+    .btn-accent{
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--bd));
+      background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, #fff), var(--card));
+    }
+    html[data-theme="dark"] .btn-accent{
+      background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 25%, #1b1f25), #1b1f25);
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--bd));
+    }
+
+    .btn-ghost{
+      background: transparent;
+      border-color: var(--bd);
+    }
+
+    .tag{ /* для ссылок-«чипов» в списке навигации */
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px;
+      border:1px solid var(--bd); background:var(--card); color:var(--text);
+      font-size:14px; font-weight:600;
+    }
+
+    /* theme toggle pill */
+    .theme-switch{
+      display:inline-flex; align-items:center; gap:8px; padding:6px;
+      border-radius:999px; border:1px solid var(--bd); background:var(--card);
+      box-shadow: 0 1px 0 rgba(255,255,255,.12) inset;
+    }
+    .theme-switch button{
+      border:0; background:transparent; padding:6px 10px; border-radius:999px; cursor:pointer;
+      color:var(--text); display:flex; align-items:center; gap:6px; font-weight:600;
+    }
+    .theme-switch button.active{
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+    .theme-icon{ width:16px; height:16px; display:block; }
+
+    /* ===================== Main / Cards ===================== */
+    main .card{ background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:16px; }
+    h1{ margin:0 0 12px; font-size:22px; }
+    h2{ margin:12px 0; font-size:18px; }
+    table{ border-collapse:collapse; width:100%; background:var(--card); }
+    th,td{ border:1px solid var(--bd); padding:8px; text-align:center; }
+    .muted{ color:var(--muted); }
+    .messages{ margin:12px 0; }
+    .msg{ padding:10px; border-radius:10px; border:1px solid var(--bd); }
+    .msg.ok{ background:var(--ok); }
+    .msg.err{ background:var(--err); }
+
+    footer{ color:#777; padding:32px 0; }
+
+    input,button,select{ padding:8px 10px; border:1px solid var(--bd); border-radius:8px; background:var(--card); color:var(--text); }
+    button{ cursor:pointer; }
+
+    .grid{ display:grid; gap:12px; }
+    @media (min-width:900px){ .grid.cols-2{ grid-template-columns:1fr 1fr; } }
+
+    .linkbtn{
+      background:transparent; border:0; padding:0 4px; color:var(--text);
+      text-decoration:underline; cursor:pointer; font:inherit;
+    }
   </style>
+
   {% block head %}{% endblock %}
 </head>
 <body>
-<header>
+
+<header id="siteHeader">
   <div class="wrap nav">
-    <a href="/" class="tag">Главная</a>
-    <a href="/teacher/" class="tag">Преподаватель</a>
+    <!-- ЛОГО (ссылка на главную) -->
+    <a href="/" class="logo-link" aria-label="Главная">
+      <img class="logo" src="{% static 'img/logo.svg' %}" alt="Колледж — расписание">
+    </a>
+
     <div class="spacer"></div>
-    {% if request.user.is_authenticated %}
-      <span class="muted">Вы вошли как {{ request.user.get_username }}</span>
-      <a href="/logout/" class="tag">Выйти</a>
-    {% else %}
-      <a href="/login/" class="tag">Войти</a>
-    {% endif %}
+
+    <!-- Переключатель темы (Light / Dark / Auto) -->
+    <div class="theme-switch" role="group" aria-label="Переключение темы">
+      <button type="button" id="thLight" title="Светлая тема">
+        <!-- sun -->
+        <svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 14.32l1.79 1.8 1.41-1.41-1.8-1.79-1.4 1.4zM12 4V1h-0v3h0zm0 19v-3h0v3h0zM4 12H1v0h3v0zm19 0h-3v0h3v0zM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM19.16 6.76l1.42-1.42-1.8-1.79-1.41 1.41 1.79 1.8zM12 7a5 5 0 100 10 5 5 0 000-10z"/>
+        </svg>
+        Светлая
+      </button>
+      <button type="button" id="thDark" title="Тёмная тема">
+        <!-- moon -->
+        <svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/>
+        </svg>
+        Тёмная
+      </button>
+      <button type="button" id="thAuto" title="Авто">
+        <!-- asterisk/auto -->
+        <svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 2l1.8 5.4L19 9l-5.2 1.6L12 16l-1.8-5.4L5 9l5.2-1.6L12 2zM4 20h16v2H4z"/>
+        </svg>
+        Авто
+      </button>
+    </div>
+
+    <!-- Правый блок действий -->
+    <div class="nav-actions" style="display:flex; gap:8px; align-items:center;">
+      {% if user.is_authenticated %}
+        <a href="/teacher/" class="tag" title="Страница преподавателя">Преподаватель</a>
+        <form action="{% url 'logout' %}" method="post" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-ghost" title="Выйти">Выйти</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}" class="btn btn-accent" title="Войти">Войти</a>
+      {% endif %}
+    </div>
   </div>
 </header>
 
@@ -63,9 +247,57 @@
 </main>
 
 <footer class="wrap">
-  <div class="muted">© {{ now|date:"Y" }} Колледж. Учебное расписание.</div>
+  <div class="muted">© {{ now|date:"Y" }} PhantomF0rge Education Sсhedule | Development Branch</div>
 </footer>
 
 {% block scripts %}{% endblock %}
+
+<script>
+  /* ===== Sticky glass header on scroll ===== */
+  (function(){
+    const h = document.getElementById('siteHeader');
+    const onScroll = () => { (window.scrollY>6) ? h.classList.add('scrolled') : h.classList.remove('scrolled'); };
+    onScroll();
+    window.addEventListener('scroll', onScroll, {passive:true});
+  })();
+
+  /* ===== THEME ENGINE: light / dark / auto (system) =====
+     - stores in localStorage('theme') one of: 'light' | 'dark' | 'auto'
+     - applies html[data-theme="<resolved>"] where resolved is 'light' or 'dark'
+     - switches patterned background automatically via CSS vars
+  */
+  (function(){
+    const root   = document.documentElement;
+    const media  = window.matchMedia('(prefers-color-scheme: dark)');
+    const btnL   = document.getElementById('thLight');
+    const btnD   = document.getElementById('thDark');
+    const btnA   = document.getElementById('thAuto');
+
+    function currentSetting(){ return localStorage.getItem('theme') || 'auto'; }
+    function resolve(mode){
+      if(mode==='light') return 'light';
+      if(mode==='dark')  return 'dark';
+      return media.matches ? 'dark' : 'light';
+    }
+    function apply(mode){
+      const resolved = resolve(mode);
+      root.setAttribute('data-theme', resolved);
+      // reflect UI
+      [btnL,btnD,btnA].forEach(b=>b.classList.remove('active'));
+      ({light:btnL, dark:btnD, auto:btnA})[mode].classList.add('active');
+    }
+    // init
+    apply(currentSetting());
+    media.addEventListener?.('change', ()=>{ if(currentSetting()==='auto') apply('auto'); });
+
+    // events
+    btnL.addEventListener('click', ()=>{ localStorage.setItem('theme','light'); apply('light'); });
+    btnD.addEventListener('click', ()=>{ localStorage.setItem('theme','dark');  apply('dark');  });
+    btnA.addEventListener('click', ()=>{ localStorage.setItem('theme','auto');  apply('auto');  });
+
+    // expose for debugging
+    window.setTheme = (m)=>{ localStorage.setItem('theme',m); apply(m); };
+  })();
+</script>
 </body>
 </html>

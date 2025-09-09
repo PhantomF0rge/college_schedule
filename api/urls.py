@@ -48,4 +48,16 @@ urlpatterns = [
 
     path("studio/lessons/", views.studio_lessons),
     path("studio/lessons/<int:pk>/", views.studio_lessons_item),
+
+    path("studio/options/", views.studio_options),
+
+    #exports
+    path("export/ics/", views.export_ics),
+    path("export/csv/", views.export_csv),
+
+    #интеграция под актуалочку с зфранепарасп
+    path("integrations/ranepa/fetch/", views.ranepa_fetch, name="ranepa_fetch"),
+
+    path("integrations/ranepa/fetch/",  views.ranepa_fetch,  name="ranepa_fetch"),
+    path("integrations/ranepa/import/", views.ranepa_import, name="ranepa_import"),
 ]
