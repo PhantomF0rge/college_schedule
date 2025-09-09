@@ -110,9 +110,26 @@
     .nav{ display:flex; gap:12px; align-items:center; }
     .nav .spacer{ flex:1; }
 
-    /* logo */
-    .logo-link{ display:flex; align-items:center; padding:6px 8px; border-radius:8px; }
-    .logo{ display:block; height:28px; width:auto; }
+    /* LOGO: две версии — светлая/тёмная */
+    .logo-link{
+      display:flex; align-items:center;
+      padding:6px 8px; border-radius:8px;
+    }
+
+    /* базовые размеры логотипа */
+    .logo{ display:block; height:65px; width:auto; }
+
+    /* по умолчанию показываем светлый логотип */
+    .logo-dark{ display:none; }
+
+    /* в тёмной теме — меняем на тёмный вариант */
+    html[data-theme="dark"] .logo-light{ display:none; }
+    html[data-theme="dark"] .logo-dark{ display:block; }
+
+    /* компактнее на телефонах */
+    @media (max-width:640px){
+      .logo{ height:28px; }
+    }
 
     /* ===================== Buttons (unified look) ===================== */
     .btn{
@@ -146,19 +163,50 @@
       font-size:14px; font-weight:600;
     }
 
-    /* theme toggle pill */
+    /* theme toggle — как .tag, с пиксельным выравниванием */
     .theme-switch{
-      display:inline-flex; align-items:center; gap:8px; padding:6px;
-      border-radius:999px; border:1px solid var(--bd); background:var(--card);
+      display:flex; gap:8px;
+      padding:0; border:0; background:transparent; box-shadow:none;
+    }
+
+    /* Кнопка как «чип»: фикс-высота + центрирование контента */
+    .theme-switch button{
+      display:inline-grid;
+      grid-auto-flow: column;
+      grid-auto-columns: min-content auto;
+      align-items: center;
+      gap:8px;
+
+      height:36px;               /* одна высота для всех, как у .tag */
+      padding:0 12px;            /* вертикальное центрирование за счёт высоты */
+      border:1px solid var(--bd);
+      background:var(--card);
+      color:var(--text);
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:14px;
+      line-height:1;             /* не опираемся на baseline шрифта */
       box-shadow: 0 1px 0 rgba(255,255,255,.12) inset;
     }
-    .theme-switch button{
-      border:0; background:transparent; padding:6px 10px; border-radius:999px; cursor:pointer;
-      color:var(--text); display:flex; align-items:center; gap:6px; font-weight:600;
-    }
+
+    .theme-switch button:hover{ box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+
     .theme-switch button.active{
-      background: color-mix(in srgb, var(--accent) 16%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 40%, var(--bd));
+    }
+
+    /* Иконка фиксированного размера */
+    .theme-switch .theme-icon{
+      width:18px; height:18px; display:block;
+    }
+
+    /* Подпись как блок (без baseline-скачков) + лёгкое оптическое выравнивание */
+    .theme-switch button .label{
+      display:block;
+      line-height:1;
+      transform: translateY(.5px); /* +0.5px сглаживает рендер в Windows */
     }
     /* ===== Mobile header adaptation (phones) ===== */
     /* desktop defaults for new elements */
@@ -170,24 +218,55 @@
     @media (max-width:640px){
       header .wrap{ padding:8px 12px; }     /* хедер уже */
       .nav{ gap:8px; }
-      .logo{ height:22px; }                 /* уменьшили логотип */
+      .logo{ height:22px; }                 /* логотип меньше */
 
-      /* переключатель темы — только иконки */
-      .theme-switch{ padding:4px; }
-      .theme-switch button{ padding:6px; }
-      .theme-switch button .label{ display:none; }
-      .theme-switch button .theme-icon{ width:18px; height:18px; }
+      /* переключатель темы — только иконки на мобилке */
+      .theme-switch button{
+        height:auto;               /* снимаем фикс-высоту для компактности */
+        padding:6px;
+        grid-auto-columns: min-content;
+      }
+      .theme-switch button .label{ display:none; transform:none; }
+      .theme-switch .theme-icon{ width:18px; height:18px; }
 
       /* «Преподаватель» — только иконка (личный кабинет) */
       .tag.tag-cab{ padding:6px; }
       .tag.tag-cab .txt{ display:none; }
       .tag.tag-cab .ic{ width:20px; height:20px; }
 
-      /* чутка сжали отступы справа у action-блока */
       .nav-actions{ gap:6px !important; }
     }
     .theme-icon{ width:16px; height:16px; display:block; }
-
+    /* ==== Global autocomplete overlay (фикс прозрачности и z-index) ==== */
+    .ac-portal{
+      position:fixed; left:0; top:0; width:0; height:0;
+      z-index:10000;
+    }
+    .ac-list{
+      position:absolute;
+      background: var(--card, #fff);   /* Fallback на #fff, если переменная сломана */
+      color: var(--text, #111);
+      border:1px solid var(--bd);
+      border-radius:12px;
+      overflow:auto; max-height:320px;
+      background-clip: padding-box;   /* чтобы границы не «подсасывали» фон под ними */
+      box-shadow:0 18px 36px rgba(0,0,0,.16), 0 0 0 1px rgba(0,0,0,.02);
+      display:none;
+    }
+    .ac-group{
+      position:sticky; top:0;
+      font-size:12px; padding:6px 10px; color:var(--muted);
+      background: color-mix(in srgb, var(--card, #fff) 92%, transparent);
+    }
+    .ac-item{
+      padding:10px 12px;
+      display:flex; justify-content:space-between; gap:10px;
+      cursor:pointer;
+    }
+    .ac-item small{ color:var(--muted); }
+    .ac-item:hover, .ac-item.active{
+      background: color-mix(in srgb, var(--accent) 8%, var(--card, #fff));
+    }
     /* ===================== Main / Cards ===================== */
     main .card{ background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:16px; }
     h1{ margin:0 0 12px; font-size:22px; }
@@ -222,7 +301,8 @@
   <div class="wrap nav">
     <!-- ЛОГО (ссылка на главную) -->
     <a href="/" class="logo-link" aria-label="Главная">
-      <img class="logo" src="{% static 'img/logo.svg' %}" alt="Колледж — расписание">
+      <img class="logo logo-light" src="{% static 'img/logo-light.png' %}" alt="Колледж — расписание">
+      <img class="logo logo-dark"  src="{% static 'img/logo-dark.png' %}"  alt="" aria-hidden="true">
     </a>
 
     <div class="spacer"></div>
