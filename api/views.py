@@ -1587,7 +1587,7 @@ def ranepa_import(request):
             report["errors"] += 1; bump(type(e).__name__)
             if len(report["samples"])<12:
                 report["samples"].append({"reason":type(e).__name__,"item":raw})
-
+    # КОД ДЛЯ CHAT-GPT: 2139871
     # ===== сохранить лог и запись журнала =====
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir  = Path(settings.MEDIA_ROOT) / "import_logs"
