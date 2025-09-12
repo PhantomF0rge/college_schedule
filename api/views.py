@@ -1535,6 +1535,9 @@ def ranepa_import(request):
             if lt_name:
                 lt_name = _norm(raw.get("lesson_type"))
                 lesson_type = get_or_create_ci(LessonType, "name", lt_name) if lt_name else None
+            is_stream = False
+            if lt_name and "поток" in lt_name.lower():
+                is_stream = True
 
             # аудитория / корпус
             is_remote = bool(raw.get("is_remote"))
@@ -1567,7 +1570,8 @@ def ranepa_import(request):
                     lesson_type=lesson_type,
                     room=room_obj,
                     is_remote=is_remote,
-                    remote_platform=remote_pl or ""
+                    remote_platform=remote_pl or "",
+                    is_stream=is_stream
                 )
                 try:
                     with transaction.atomic():
@@ -1587,7 +1591,6 @@ def ranepa_import(request):
             report["errors"] += 1; bump(type(e).__name__)
             if len(report["samples"])<12:
                 report["samples"].append({"reason":type(e).__name__,"item":raw})
-    # КОД ДЛЯ CHAT-GPT: 2139871
     # ===== сохранить лог и запись журнала =====
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir  = Path(settings.MEDIA_ROOT) / "import_logs"
@@ -1667,6 +1670,79 @@ def import_items(items, meta):
             log.append(str(e))
     return {"created":created,"updated":updated,"skipped":skipped,"errors":errors,"log":log}
 
+# === helpers for "legal stream" buckets (teacher/room) ===
+def _stream_flag(row: dict) -> bool:
+    """True, если отмечено is_stream или тип пары содержит 'поток' (регистронезависимо)."""
+    lt = (row.get("lesson_type__name") or "").lower()
+    return bool(row.get("is_stream")) or ("поток" in lt)
+
+def _same(vals) -> bool:
+    it = iter(vals)
+    try:
+        first = next(it)
+    except StopIteration:
+        return True
+    return all(v == first for v in it)
+
+def _is_legal_stream_teacher(lessons: list[dict]) -> bool:
+    """
+    Набор занятий для одного преподавателя в один слот считаем 'легальным потоком',
+    если:
+      - все помечены как поток (_stream_flag=True)
+      - одинаковые discipline, lesson_type, is_remote, remote_platform
+      - если очно, то у всех одинаковая аудитория (чтобы не получить «один препод в двух аудиториях»)
+    """
+    if not lessons or not all(_stream_flag(l) for l in lessons):
+        return False
+
+    if not _same(l.get("discipline_id") for l in lessons):
+        return False
+
+    # Тип пары: по id, а если пусто — по названию
+    lt_ids   = [l.get("lesson_type_id") for l in lessons]
+    lt_names = [(l.get("lesson_type__name") or "").strip().lower() for l in lessons]
+    if not _same(lt_ids):
+        # допускаем None, если все названия совпадают
+        if not (_same(lt_names) and all(bool(n) for n in lt_names)):
+            return False
+
+    if not _same(l.get("is_remote") for l in lessons):
+        return False
+
+    if not lessons[0]["is_remote"]:
+        # оффлайн-поток — одна аудитория
+        if not _same(l.get("room_id") for l in lessons):
+            return False
+    else:
+        # онлайн — одна и та же платформа/ссылка (или все пусто)
+        if not _same((l.get("remote_platform") or "").strip().lower() for l in lessons):
+            return False
+
+    return True
+
+def _is_legal_stream_room(lessons: list[dict]) -> bool:
+    """
+    Набор занятий в одной аудитории в один слот считаем 'легальным потоком',
+    если:
+      - все помечены как поток (_stream_flag=True)
+      - один и тот же преподаватель
+      - одинаковые discipline, lesson_type
+    """
+    if not lessons or not all(_stream_flag(l) for l in lessons):
+        return False
+    if not _same(l.get("teacher_id") for l in lessons):
+        return False
+    if not _same(l.get("discipline_id") for l in lessons):
+        return False
+
+    lt_ids   = [l.get("lesson_type_id") for l in lessons]
+    lt_names = [(l.get("lesson_type__name") or "").strip().lower() for l in lessons]
+    if not _same(lt_ids):
+        if not (_same(lt_names) and all(bool(n) for n in lt_names)):
+            return False
+
+    return True
+
 @login_required
 @user_passes_test(_is_admin)
 @require_GET
@@ -1681,48 +1757,81 @@ def ranepa_conflicts(request):
 
     out = {"teacher":[], "room":[], "group":[]}
 
-    # Преподаватель на нескольких парах одновременно
-    for row in (qs.filter(teacher__isnull=False)
-                  .values("date","timeslot_id","teacher__id","teacher__full_name")
-                  .annotate(n=Count("id")).filter(n__gt=1)):
+    # === 1) Преподаватель на нескольких парах одновременно ===
+    dup_teachers = (qs.filter(teacher__isnull=False)
+                      .values("date","timeslot_id","teacher__id","teacher__full_name")
+                      .annotate(n=Count("id")).filter(n__gt=1))
+    for row in dup_teachers:
+        # Подтягиваем подробности набора в этот слот
         lessons = list(
-          Lesson.objects.filter(date=row["date"], timeslot_id=row["timeslot_id"],
-                                teacher_id=row["teacher__id"])\
-            .values("id","group__code","room__name","is_remote")
+            Lesson.objects.filter(
+                date=row["date"], timeslot_id=row["timeslot_id"], teacher_id=row["teacher__id"]
+            ).values(
+                "id",
+                "group__code",
+                "room_id", "room__name",
+                "is_remote", "remote_platform",
+                "discipline_id",
+                "lesson_type_id", "lesson_type__name",
+                "teacher_id"
+            )
         )
+
+        # Поток? — тогда не показываем это как конфликт
+        if _is_legal_stream_teacher(lessons):
+            continue
+
         out["teacher"].append({
-          "date": row["date"].isoformat(),
-          "slot": row["timeslot_id"],
-          "teacher": row["teacher__full_name"],
-          "lessons": lessons,
-          "reason": "Преподаватель назначен на несколько пар в один слот"
+            "date": row["date"].isoformat(),
+            "slot": row["timeslot_id"],
+            "teacher": row["teacher__full_name"],
+            "lessons": [
+                {k:v for k,v in l.items() if k in ("id","group__code","room__name","is_remote")}
+                for l in lessons
+            ],
+            "reason": "Преподаватель назначен на несколько пар в один слот"
         })
 
-    # Аудитория занята несколькими группами
-    for row in (qs.filter(room__isnull=False)
-                  .values("date","timeslot_id","room__id","room__name","room__building__name")
-                  .annotate(n=Count("id")).filter(n__gt=1)):
+    # === 2) Аудитория занята несколькими группами ===
+    dup_rooms = (qs.filter(room__isnull=False)
+                   .values("date","timeslot_id","room__id","room__name","room__building__name")
+                   .annotate(n=Count("id")).filter(n__gt=1))
+    for row in dup_rooms:
         lessons = list(
-          Lesson.objects.filter(date=row["date"], timeslot_id=row["timeslot_id"],
-                                room_id=row["room__id"])\
-            .values("id","group__code","teacher__full_name")
+            Lesson.objects.filter(
+                date=row["date"], timeslot_id=row["timeslot_id"], room_id=row["room__id"]
+            ).values(
+                "id",
+                "group__code",
+                "teacher_id","teacher__full_name",
+                "discipline_id",
+                "lesson_type_id","lesson_type__name",
+                "is_stream"
+            )
         )
+
+        if _is_legal_stream_room(lessons):
+            continue
+
         out["room"].append({
-          "date": row["date"].isoformat(),
-          "slot": row["timeslot_id"],
-          "room": row["room__name"],
-          "building": row["room__building__name"],
-          "lessons": lessons,
-          "reason": "Аудитория занята несколькими парами"
+            "date": row["date"].isoformat(),
+            "slot": row["timeslot_id"],
+            "room": row["room__name"],
+            "building": row["room__building__name"],
+            "lessons": [
+                {k:v for k,v in l.items() if k in ("id","group__code","teacher__full_name")}
+                for l in lessons
+            ],
+            "reason": "Аудитория занята несколькими парами"
         })
 
-    # На одну группу больше одной пары (теоретически не должно, но проверим)
+    # === 3) На одну группу больше одной пары (потоки не влияют) ===
     for row in (qs.values("date","timeslot_id","group__id","group__code")
                   .annotate(n=Count("id")).filter(n__gt=1)):
         lessons = list(
-          Lesson.objects.filter(date=row["date"], timeslot_id=row["timeslot_id"],
-                                group_id=row["group__id"])\
-            .values("id","discipline__title","teacher__full_name")
+          Lesson.objects.filter(
+              date=row["date"], timeslot_id=row["timeslot_id"], group_id=row["group__id"]
+          ).values("id","discipline__title","teacher__full_name")
         )
         out["group"].append({
           "date": row["date"].isoformat(),

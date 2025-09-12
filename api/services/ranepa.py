@@ -91,7 +91,6 @@ def _parse_week_html(html: str, q: str, kind: str, week_start_iso: str):
                 if rm.isdigit():
                     n = int(rm)
                     building = "Колледж" if n < 100 else "Высшее Образование"
-# КОД ДЛЯ CHAT-GPT: 11232131
             items.append({
                 "date": cur_date.isoformat(),
                 "order": int(pair_field) if pair_field.isdigit() else None,
