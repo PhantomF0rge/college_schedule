@@ -27,8 +27,27 @@ import json, re
 from django.db import IntegrityError
 from pathlib import Path
 from django.forms.models import model_to_dict
+from django.db.models import Count
+from django.utils.dateparse import parse_date
 
 COOKIE_NAME = "preferred_group"
+
+# >>> ADD: helpers (case-insensitive get_or_create + очистка дисциплины)
+_LEADING_BR = re.compile(r'^(?:\s*(?:<br\s*/?>|\r?\n)+\s*)+', re.I)
+
+def strip_leading_breaks(s: str | None) -> str:
+    return _LEADING_BR.sub('', (s or '')).strip()
+
+def get_or_create_ci(model, field: str, value: str | None, defaults: dict | None = None):
+    """Case-insensitive get_or_create без дубликатов по регистру."""
+    if not value:
+        return None
+    val = value.strip()
+    defaults = defaults or {}
+    obj = model.objects.filter(**{f"{field}__iexact": val}).first()
+    if obj:
+        return obj
+    return model.objects.create(**{field: val}, **defaults)
 
 def _is_admin(user):
     return user.is_staff or user.is_superuser or user.groups.filter(name="Admin").exists()
@@ -1487,7 +1506,7 @@ def ranepa_import(request):
                 continue
 
             # группы: допускаем несколько
-            groups_raw = re.split(r"[,\s]+", _norm(raw.get("group")))
+            groups_raw = re.split(r",\s*|;\s*", _norm(raw.get("group")))
             groups_raw = [g for g in groups_raw if g]
             if not groups_raw:
                 report["skipped"] += 1; bump("NO_GROUP")
@@ -1495,7 +1514,9 @@ def ranepa_import(request):
                 continue
 
             # дисциплина + «поток»
-            disc_base  = _norm(raw.get("discipline")) or "Без названия"
+            disc_base  = strip_leading_breaks(_norm(raw.get("discipline"))) or "Без названия"
+            disc_title = disc_base
+            discipline = get_or_create_ci(Discipline, "title", disc_title)
             if len(groups_raw) > 1:
                 disc_title = f"{disc_base} (Поток {'/'.join(groups_raw)})"
             else:
@@ -1506,12 +1527,14 @@ def ranepa_import(request):
             teacher = None
             teacher_name = _norm(raw.get("teacher"))
             if teacher_name:
-                teacher, _ = Teacher.objects.get_or_create(full_name=teacher_name)
+                teacher_name = _norm(raw.get("teacher"))
+                teacher = get_or_create_ci(Teacher, "full_name", teacher_name) if teacher_name else None
 
             lesson_type = None
             lt_name = _norm(raw.get("lesson_type"))
             if lt_name:
-                lesson_type, _ = LessonType.objects.get_or_create(name=lt_name)
+                lt_name = _norm(raw.get("lesson_type"))
+                lesson_type = get_or_create_ci(LessonType, "name", lt_name) if lt_name else None
 
             # аудитория / корпус
             is_remote = bool(raw.get("is_remote"))
@@ -1519,19 +1542,17 @@ def ranepa_import(request):
             remote_pl = None
             if is_remote:
                 remote_pl = _norm(raw.get("remote_platform"))
-            if not is_remote:
+            else:
                 room_name = _norm(raw.get("room"))
                 bname = _norm(raw.get("building")) or _derive_building_name(room_name)
-                building = None
-                if bname:
-                    building, _ = Building.objects.get_or_create(name=bname)
+                building = get_or_create_ci(Building, "name", bname) if bname else None
                 if not building:
-                    building, _ = Building.objects.get_or_create(name="Не указан")
+                    building = get_or_create_ci(Building, "name", "Не указан")
+
                 if room_name:
-                    room_obj, _ = Room.objects.get_or_create(
-                        name=room_name, building=building,
-                        defaults={"capacity": 30}
-                    )
+                    room_obj = Room.objects.filter(name__iexact=room_name, building=building).first()
+                    if not room_obj:
+                        room_obj = Room.objects.create(name=room_name, building=building, capacity=30)
 
             # создаём/обновляем для каждой группы
             for code in groups_raw:
@@ -1591,3 +1612,124 @@ def ranepa_import(request):
     )
 
     return JsonResponse({"ok": True, "job_id": job.id, "totals": report, "log_url": log_url})
+
+
+def get_ci(model, field: str, name: str):
+    if not name: return None
+    key = (model.__name__, canon(name))
+    cache = {"Teacher":t_cache,"Group":g_cache,"Discipline":d_cache,"LessonType":lt_cache}[model.__name__]
+    if key in cache: return cache[key]
+    obj = model.objects.filter(**{f"{field}__iexact": name.strip()}).first()
+    if not obj:
+        obj = model.objects.create(**{field: name.strip()})
+    cache[key] = obj
+    return obj
+
+@transaction.atomic
+def import_items(items, meta):
+    created=updated=skipped=errors=0
+    log=[]
+    for it in items:
+        try:
+            # нормализуем названия
+            disc = strip_leading_breaks(it.get("discipline"))   # из services.ranepa или продублируй функцию здесь
+            group = it.get("group")
+            teacher = it.get("teacher")
+            ltype = it.get("lesson_type")
+
+            # достаём/создаём справочники без дублей
+            D = get_ci(Discipline, "name", disc) if disc else None
+            G = get_ci(Group, "code", group) if group else None
+            T = get_ci(Teacher, "name", teacher) if teacher else None
+            LT= get_ci(LessonType, "name", ltype) if ltype else None
+
+            # ключ урока — дата+пара+группа (или препод), чтобы обновлять, а не плодить
+            uniq = {
+                "date": it["date"],
+                "order": it.get("order"),
+                "group": G,
+            }
+            lesson, is_created = Lesson.objects.update_or_create(
+                **uniq,
+                defaults={
+                    "discipline": D,
+                    "teacher": T,
+                    "lesson_type": LT,
+                    "room": None if it.get("is_remote") else (it.get("room") or ""),
+                    "is_remote": bool(it.get("is_remote")),
+                    "remote_platform": it.get("remote_platform") or "",
+                }
+            )
+            created += int(is_created)
+            updated += int(not is_created)
+        except Exception as e:
+            errors += 1
+            log.append(str(e))
+    return {"created":created,"updated":updated,"skipped":skipped,"errors":errors,"log":log}
+
+@login_required
+@user_passes_test(_is_admin)
+@require_GET
+def ranepa_conflicts(request):
+    start = parse_date(request.GET.get("start") or "")
+    end   = parse_date(request.GET.get("end") or "")
+    if not (start and end):
+        return HttpResponseBadRequest("start,end required")
+
+    qs = Lesson.objects.select_related("group","teacher","room","timeslot")\
+        .filter(date__gte=start, date__lte=end)
+
+    out = {"teacher":[], "room":[], "group":[]}
+
+    # Преподаватель на нескольких парах одновременно
+    for row in (qs.filter(teacher__isnull=False)
+                  .values("date","timeslot_id","teacher__id","teacher__full_name")
+                  .annotate(n=Count("id")).filter(n__gt=1)):
+        lessons = list(
+          Lesson.objects.filter(date=row["date"], timeslot_id=row["timeslot_id"],
+                                teacher_id=row["teacher__id"])\
+            .values("id","group__code","room__name","is_remote")
+        )
+        out["teacher"].append({
+          "date": row["date"].isoformat(),
+          "slot": row["timeslot_id"],
+          "teacher": row["teacher__full_name"],
+          "lessons": lessons,
+          "reason": "Преподаватель назначен на несколько пар в один слот"
+        })
+
+    # Аудитория занята несколькими группами
+    for row in (qs.filter(room__isnull=False)
+                  .values("date","timeslot_id","room__id","room__name","room__building__name")
+                  .annotate(n=Count("id")).filter(n__gt=1)):
+        lessons = list(
+          Lesson.objects.filter(date=row["date"], timeslot_id=row["timeslot_id"],
+                                room_id=row["room__id"])\
+            .values("id","group__code","teacher__full_name")
+        )
+        out["room"].append({
+          "date": row["date"].isoformat(),
+          "slot": row["timeslot_id"],
+          "room": row["room__name"],
+          "building": row["room__building__name"],
+          "lessons": lessons,
+          "reason": "Аудитория занята несколькими парами"
+        })
+
+    # На одну группу больше одной пары (теоретически не должно, но проверим)
+    for row in (qs.values("date","timeslot_id","group__id","group__code")
+                  .annotate(n=Count("id")).filter(n__gt=1)):
+        lessons = list(
+          Lesson.objects.filter(date=row["date"], timeslot_id=row["timeslot_id"],
+                                group_id=row["group__id"])\
+            .values("id","discipline__title","teacher__full_name")
+        )
+        out["group"].append({
+          "date": row["date"].isoformat(),
+          "slot": row["timeslot_id"],
+          "group": row["group__code"],
+          "lessons": lessons,
+          "reason": "На группу назначено >1 пары в один слот"
+        })
+
+    return JsonResponse(out, safe=False)

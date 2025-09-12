@@ -1,0 +1,789 @@
+{% extends "base.html" %}
+{% block title %}Главная — Расписание{% endblock %}
+
+{% block head %}
+<style>
+  /* === THEME TOKENS ===================================================== */
+  :root{
+    /* базовые */
+    --accent:#cb1746;
+    --ink:#1f2024; --ink2:#3a3c42;
+    --line:rgba(31,32,36,.14);
+    --glass:#ecf3f3;
+
+    /* состояние/бэйджи */
+    --ok:#c8f7c5; --soon:#e3f2fd; --past:#eceff1; --remote:#fff3cd;
+
+    /* glow для гласс-карточек */
+    --glass-glow: color-mix(in srgb, var(--accent) 18%, transparent);
+    --glass-bg: color-mix(in srgb, var(--glass) 66%, transparent);
+    --chip-muted:#6b717a;
+  }
+
+  /* Тёмная тема — включается атрибутом data-theme="dark" на <html> (см. скрипт ниже) */
+  html[data-theme="dark"]{
+    color-scheme: dark;                  /* корректные системные контролы */
+    --ink:#e9ebef; --ink2:#b7bbc4;
+    --line:rgba(255,255,255,.12);
+    --glass:#1f2228;                     /* глубже фон под стеклом */
+    --glass-bg: color-mix(in srgb, #1f2228 86%, transparent);
+    --glass-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+    --ok:#204021; --soon:#102332; --past:#2a2d33; --remote:#2b2421;
+    --chip-muted:#9aa3ae;
+  }
+  body{
+    color:var(--ink);
+  }
+  /* === LIQUID GLASS ===================================================== */
+  .glass{
+    background: var(--glass-bg);
+    border:1px solid rgba(255,255,255,.45);
+    box-shadow:
+      0 6px 24px rgba(31,32,36,.10),
+      0 0 0 1px rgba(255,255,255,.35) inset,
+      0 0 22px var(--glass-glow);          /* лёгкая подсветка фирменным */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 18px;
+    isolation:isolate;
+  }
+  html[data-theme="dark"] .glass{
+    border-color: rgba(255,255,255,.08);
+    box-shadow:
+      0 10px 32px rgba(0,0,0,.45),
+      0 0 0 1px rgba(255,255,255,.06) inset,
+      0 0 26px var(--glass-glow);
+  }
+  /* === DARK OVERRIDES (не меняют светлую тему) ========================= */
+  html[data-theme="dark"] .muted{ color:var(--chip-muted); }
+  html[data-theme="dark"] .field .label{ color:var(--chip-muted); }
+
+  html[data-theme="dark"] .card,
+  html[data-theme="dark"] .break-card,
+  html[data-theme="dark"] .holiday,
+  html[data-theme="dark"] .chip,
+  html[data-theme="dark"] .pill,
+  html[data-theme="dark"] .badge,
+  html[data-theme="dark"] .input,
+  html[data-theme="dark"] .ac-list{
+    background:#24262b;
+    border-color:rgba(255,255,255,.10);
+    color:var(--ink);
+  }
+  html[data-theme="dark"] .card{ box-shadow:0 6px 24px rgba(0,0,0,.55); }
+  html[data-theme="dark"] .badge.state-past{ background:#2a2d33; }
+  html[data-theme="dark"] .badge.mode-remote{
+    background: color-mix(in srgb, var(--accent) 14%, #2b2421);
+    border-color: color-mix(in srgb, var(--accent) 30%, #2b2421);
+  }
+  .pad{ padding:14px; }
+
+  /* ===== TOP SEARCH ===== */
+  .topbar{
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px; align-items: end;
+  }
+  @media (max-width: 900px){ .topbar{ grid-template-columns: 1fr; } }
+
+  .field{ position:relative; }
+  .field .label{ display:block; font-size:12px; color:var(--muted); margin:0 0 4px 6px; }
+  .input{
+    width:100%; padding:12px 14px; border-radius:12px;
+    border:1px solid var(--line); background:var(--card); color:var(--text); outline:none;
+    box-shadow: 0 1px 0 rgba(255,255,255,.08) inset;
+  }
+  .input:focus{
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  /* кнопки — в стиле base.html, но локально (чтобы не «белели» в тёмной) */
+  .btn{
+    appearance:none; border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+    background: linear-gradient(180deg,
+                color-mix(in srgb, var(--accent) 10%, var(--card)),
+                var(--card));
+    color:var(--text); padding:12px 14px; border-radius:12px; cursor:pointer; font-weight:600;
+  }
+  .btn.secondary{
+    border-color:var(--line);
+    background:var(--card); color:var(--text);
+  }
+  .muted{ color:var(--muted); }
+
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .chip button{ border:none; background:none; cursor:pointer; font-size:16px; line-height:1; padding:0 2px; }
+
+  /* Autocomplete overlay (portal to body) */
+  .ac-portal{
+    position: fixed; left:0; top:0; width:0; height:0; z-index: 9999;
+  }
+  .ac-item{ padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; }
+  .ac-empty{ padding:10px 12px; color:#8a8f98; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
+    border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); font-size:14px;
+  }
+  .ac-list{
+    position:absolute; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: 0 16px 36px rgba(31,32,36,.16); max-height:320px; overflow:auto; display:none;
+  }
+  .ac-group{ padding:6px 10px; font-size:12px; color:var(--muted);
+    background: color-mix(in srgb, var(--card) 92%, transparent); position:sticky; top:0; }
+  .ac-item:hover, .ac-item.active{
+    background: color-mix(in srgb, var(--accent) 8%, var(--card));
+  }
+  .seg .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 12px; background:var(--card); border:1px solid var(--line);
+    border-radius:999px; cursor:pointer; user-select:none;
+  }
+  .date-input input[type="date"]{
+    padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--text); width:100%;
+  }
+  .ac-item small{ color:var(--muted); }
+
+
+  /* ===== LAYOUT: MAIN + SIDEBAR ===== */
+  .main-grid{
+    display:grid;
+    gap:16px;
+    grid-template-columns:minmax(0,1fr) 320px;
+    grid-template-areas: "results sidebar";
+    align-items:start;
+  }
+  .results{ grid-area: results; }
+  .sidebar{ grid-area: sidebar; }
+
+  @media (max-width:980px){
+    .main-grid{
+      grid-template-columns:1fr;
+      grid-template-areas:
+        "sidebar"
+        "results";
+    }
+    .sidebar{ position: static; }
+  }
+  .results{ padding:16px; overflow:auto; }
+  .sidebar{ padding:16px; position:sticky; top:12px; height:max-content; z-index: 1; }
+
+  /* ===== PERIOD SIDEBAR ===== */
+  .seg{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .seg .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:8px 12px; background:var(--card); border:1px solid var(--line);
+    border-radius:999px; cursor:pointer; user-select:none;
+  }
+  .seg input{ display:none; }
+  /* Активная «таблетка» периода — тема-aware */
+  .seg input:checked + .pill{
+    background: color-mix(in srgb, var(--accent) 14%, var(--card));
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+    color: var(--text);
+  }
+  /* Ховер/фокус — лёгкий акцент без выбеливания */
+  .seg .pill:hover,
+  .seg input:focus-visible + .pill{
+    background: color-mix(in srgb, var(--accent) 8%, var(--card));
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  }
+  .dates{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .date-input{ display:flex; flex-direction:column; gap:4px; }
+  .date-input input[type="date"]{
+    padding:10px 12px; border:1px solid var(--line); border-radius:12px;
+    background:var(--card); color:var(--text); width:100%;
+  }
+  /* Дата: нормальный фон и текст в любой теме */
+  .date-input input[type="date"]{
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 0 rgba(0,0,0,.04) inset;
+  }
+
+  /* Когда поле отключено (режим не «Период») — не выбелять */
+  .date-input input[type="date"]:disabled{
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    color: var(--muted);
+    opacity: 1;                /* отменяем системное «серение» */
+  }
+
+  /* Плейсхолдер/формат даты посветлее */
+  .date-input input[type="date"]::placeholder{ color: var(--muted); opacity: .85; }
+
+  /* Иконка календаря менее контрастная в тёмной теме */
+  html[data-theme="dark"] .date-input input[type="date"]::-webkit-calendar-picker-indicator{
+    filter: opacity(.75);
+  }
+
+  /* ===== DAY CARD (новый контейнер дня) ===== */
+  .daycard{
+    display:grid; grid-template-columns:56px 1fr; gap:0;
+    border:1px solid var(--line); border-radius:18px;
+    background: color-mix(in srgb, var(--card) 70%, var(--glass) 30%); /* адаптивно к теме */
+    overflow:hidden; box-shadow:0 6px 24px rgba(31,32,36,.06);
+  }
+  .daycard + .daycard{ margin-top:18px; } 
+  .datebar{
+    background: var(--accent);
+    border-right:1px solid color-mix(in srgb, var(--accent) 30%, #0000);
+    display:flex; align-items:center; justify-content:center;
+    padding:8px 0;
+  }
+  /* вертикальная подпись снизу-вверх */
+  .datebar .vtext{
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    display:flex; align-items:center; justify-content:center;
+    gap:8px;
+    color:#fff;
+    text-shadow: 0 1px 0 rgba(0,0,0,.1);
+    letter-spacing:.5px;
+    font-weight:700;
+  }
+  .datebar .vtext .dayname{
+    opacity:.9; font-weight:600;
+  }
+  .daycontent{ padding:12px; }
+  .daymeta{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:8px; border-bottom:1px dashed var(--line); color:var(--ink2); }
+  .cards{ display:grid; gap:12px; grid-template-columns: 1fr; margin-top:12px; } /* 1 карта в строке всегда */
+
+  /* ===== LESSON CARD ===== */
+  .slot{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .time{ font-size:12px; color:#6b717a; }
+  .card{
+    border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 4px 18px rgba(31,32,36,.06);
+    display:grid; grid-template-columns:56px 1fr minmax(120px, auto); gap:12px; align-items:center; padding:12px;
+  }
+  .slot-num{
+    width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); font-weight:700; background:var(--card); color:var(--text);
+  }
+  .main{ min-width:0; }
+  .title{ font-weight:800; line-height:1.2; }
+  .subtitle{ color:#6b717a; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .meta{ text-align:right; }
+  .room{ font-weight:700; }
+  .building{ color:#6b717a; font-size:13px; margin-top:2px; }
+
+  /* бейджи — неинтерактивные */
+  .badges{
+    display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;
+    pointer-events:none;
+  }
+  .badge{
+    display:inline-flex; align-items:center; justify-content:center; height:32px; padding:0 12px;
+    box-sizing:border-box; background-clip:padding-box;
+    border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text);
+    font-size:12px; line-height:1; font-weight:500; user-select:none;
+  }
+  .badge::selection, .badge *::selection{ background:transparent; color:inherit; }
+  .badge:focus, .badge:active, .badge:focus-visible{ outline:none; box-shadow:none; }
+
+  .badge.type{ border-color:#b0bec5; }
+  .badge.mode-remote{ border-color:#e0b800; background:var(--remote); }
+  .badge.mode-in{ }
+  .badge.state-ongoing{ border-color:#2e7d32; background:var(--ok); }
+  .badge.state-upcoming{ border-color:#1976d2; background:var(--soon); }
+  .badge.state-past{ border-color:#b0bec5; background:var(--past); }
+
+  .hw{ margin-top:8px; font-size:13px; background:#f9fafb; border:1px dashed var(--line); padding:8px; border-radius:12px; }
+
+  /* BREAK CARD / HOLIDAY */
+  .break-card,
+  .holiday{
+    border:1px dashed var(--line); border-radius:16px;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    color:var(--muted); padding:12px;
+  }
+
+  /* header above results */
+  .hdr{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding-bottom:8px; border-bottom:1px dashed var(--line); margin-bottom:12px;
+  }
+  /* безопасность темы: не трогаем --card, только прокидываем текстовый цвет */
+  :root{ --text: var(--ink); }
+  /* (если нужен алиас под локальные стили — используем отдельную переменную) */
+  :root{ --surface: var(--card); }
+  /* === PHONE — COMPACT CARDS (desktop look, scaled) ===================== */
+  @media (max-width: 640px){
+    /* возвращаем поля вокруг контента */
+    main.wrap{ padding:12px; }
+
+    /* нормальный зазор между секциями, не прилипают к краям */
+    .main-grid{ gap:12px; margin-top:12px !important; }
+
+    /* стеклянные блоки остаются «карточками», как на десктопе */
+    .glass{ border-radius:16px; }
+    .glass.pad{ border-radius:16px; }
+    .glass.results, .glass.sidebar{
+      box-shadow:0 6px 18px rgba(31,32,36,.06);
+      /* НЕ убираем боковые границы и не делаем edge-to-edge */
+    }
+
+    .results{ padding:12px; }
+    .sidebar{ padding:12px; }
+
+    /* день — компактная «папка» как на десктопе */
+    .daycard{
+      grid-template-columns:44px 1fr;
+      border-radius:16px;
+      /* оставляем стандартные границы/фон как в десктопе */
+    }
+    .datebar{ padding:6px 0; }
+    .daycontent{ padding:12px; }
+
+    /* карточки пар — такие же, только чуть меньше */
+    .cards{ gap:10px; }
+    .cards .card{ border-radius:16px; }
+    .card{
+      grid-template-columns:48px 1fr; /* уменьшили слот, но структура как на десктопе */
+      padding:12px;
+    }
+    .slot-num{ width:36px; height:36px; font-size:14px; }
+    .time{ font-size:12px; }
+    .title{ font-size:16px; }
+    .subtitle{ font-size:13px; }
+
+    /* бейджи — одной линией со скроллом, чтобы не было «лесенок» */
+    .badges{
+      flex-wrap:nowrap; white-space:nowrap;
+      overflow-x:auto; gap:8px;
+      -webkit-overflow-scrolling:touch; scrollbar-width:none;
+      mask-image:linear-gradient(to right, transparent, black 14px, black calc(100% - 14px), transparent);
+    }
+    .badges::-webkit-scrollbar{ display:none; }
+
+    .meta{ text-align:left; font-size:12px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- TOP SEARCH -->
+<div class="glass pad">
+  <div class="topbar">
+    <div class="field" style="grid-column: 1 / -1;">
+      <label class="label">Поиск по группе, преподавателю или предмету</label>
+      <input id="inpGlobal" class="input" placeholder="Номер группы / Фамилия преподавателя / Название предмета" autocomplete="off">
+    </div>
+
+    <div class="chips" id="chips"></div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn secondary" id="btnSaveGroup" title="Сохранить группу">Сохранить группу</button>
+    </div>
+  </div>
+  <div id="topNote" class="muted" style="margin-top:6px; min-height:18px;"></div>
+</div>
+
+<!-- MAIN + SIDEBAR -->
+<div class="main-grid" style="margin-top:16px;">
+  <!-- RESULTS -->
+  <div class="glass results">
+    <div class="hdr">
+      <div>
+        <h2 style="margin:0">Расписание</h2>
+        <div id="subtitle" class="muted">Наберите в поиске и выберите вариант из списка</div>
+      </div>
+      <div id="totalInfo" class="muted"></div>
+    </div>
+    <div id="results"></div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="glass sidebar">
+    <h3 style="margin-top:0;">Период</h3>
+    <div class="seg">
+      <label><input type="radio" name="period" value="today" checked><span class="pill">Сегодня</span></label>
+      <label><input type="radio" name="period" value="week"><span class="pill">Неделя</span></label>
+      <label><input type="radio" name="period" value="range"><span class="pill">Период</span></label>
+    </div>
+    <div class="dates">
+      <div class="date-input"><label class="muted">C</label><input id="dateStart" type="date" disabled></div>
+      <div class="date-input"><label class="muted">По</label><input id="dateEnd" type="date" disabled></div>
+    </div>
+  </aside>
+</div>
+
+<!-- Autocomplete portal root -->
+<div id="acPortal" class="ac-portal">
+  <div id="acList" class="ac-list"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* THEME BOOTSTRAP (auto + готово для ручного переключателя в будущем) */
+(function(){
+  const root = document.documentElement;
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const saved = localStorage.getItem('theme') || 'auto'; // 'light' | 'dark' | 'auto'
+  function apply(mode){
+    const sysDark = media.matches;
+    const theme = mode==='dark' ? 'dark' : mode==='light' ? 'light' : (sysDark?'dark':'light');
+    root.setAttribute('data-theme', theme);
+  }
+  apply(saved);
+  media.addEventListener?.('change', ()=>{ if((localStorage.getItem('theme')||'auto')==='auto') apply('auto'); });
+  // window.setTheme = (m)=>{ localStorage.setItem('theme', m); apply(m); }; // (опционально — для будущей кнопки)
+})();
+/* ===== helpers ===== */
+const $ = s=>document.querySelector(s);
+const $$ = s=>Array.from(document.querySelectorAll(s));
+function fmtDate(d){ return d.toISOString().slice(0,10); }
+function mondayOf(date){ const d=new Date(date); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d; }
+function weekRangeAround(date){ const s=mondayOf(date); const e=new Date(s); e.setDate(s.getDate()+6); return {start:fmtDate(s), end:fmtDate(e)}; }
+function debounce(fn,ms=220){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+
+// Текущая дата/время в калининградской зоне
+function nowInKaliningrad(){
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'Europe/Kaliningrad',
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12:false
+  }).formatToParts(new Date());
+  const get = t => parts.find(p=>p.type===t).value;
+  return { date:`${get('year')}-${get('month')}-${get('day')}`, hm:`${get('hour')}:${get('minute')}` };
+}
+// Парсим "HH:MM–HH:MM" (любой дефис)
+function parseTimeRange(s){
+  if(!s) return {start:"00:00", end:"23:59"};
+  const m = String(s).match(/(\d{1,2}):(\d{2}).*?(\d{1,2}):(\d{2})/);
+  if(!m) return {start:"00:00", end:"23:59"};
+  const pad = x => x.toString().padStart(2,'0');
+  return { start:`${pad(m[1])}:${m[2]}`, end:`${pad(m[3])}:${m[4]}` };
+}
+// сравнение строк "HH:MM" как времени
+function cmpHM(a,b){ return a===b?0:(a<b?-1:1); }
+
+
+function ddmmyyyy(dateStr){ const [y,m,d]=dateStr.split('-'); return `${d}.${m}.${y}`; }
+function weekdayRu(dateStr){
+  const map = ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
+  const d = new Date(dateStr+'T00:00:00');
+  const idx = (d.getDay()+6)%7; // 0=пн
+  return map[idx];
+}
+
+/* ===== state ===== */
+let selected = { groupLabel:null, teacherId:null, teacherLabel:null, disciplineId:null, disciplineLabel:null };
+
+/* ===== chips ===== */
+function renderChips(){
+  const c = $("#chips"); c.innerHTML = "";
+  if(selected.groupLabel){
+    c.insertAdjacentHTML("beforeend", `<span class="chip">Группа: ${selected.groupLabel} <button aria-label="Удалить" onclick="clearGroup()">×</button></span>`);
+  }
+  if(selected.teacherId){
+    c.insertAdjacentHTML("beforeend", `<span class="chip">Преподаватель: ${selected.teacherLabel} <button aria-label="Удалить" onclick="clearTeacher()">×</button></span>`);
+  }
+  if(selected.disciplineId){
+    c.insertAdjacentHTML("beforeend", `<span class="chip">Предмет: ${selected.disciplineLabel} <button aria-label="Удалить" onclick="clearDiscipline()">×</button></span>`);
+  }
+}
+window.clearGroup = ()=>{ selected.groupLabel=null; renderChips(); loadSchedule(); };
+window.clearTeacher = ()=>{ selected.teacherId=null; selected.teacherLabel=null; renderChips(); loadSchedule(); };
+window.clearDiscipline = ()=>{ selected.disciplineId=null; selected.disciplineLabel=null; renderChips(); loadSchedule(); };
+
+/* ===== autocomplete (unified, portal to body) ===== */
+(function bindUnifiedAutocomplete(){
+  const input = $("#inpGlobal"); const dd = $("#acList");
+  let items=[], idx=-1, open=false;
+
+  function positionPortal(){
+    if(!open) return;
+    const r = input.getBoundingClientRect();
+    dd.style.left = (r.left + window.scrollX) + "px";
+    dd.style.top  = (r.bottom + window.scrollY + 6) + "px";
+    dd.style.width = r.width + "px";
+  }
+  const onScrollOrResize = ()=>positionPortal();
+
+  function show(){
+    if(!items.length){ dd.style.display="block"; dd.innerHTML=`<div class="ac-empty">Нет совпадений</div>`; }
+    else dd.style.display="block";
+    open=true; positionPortal();
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize, true);
+  }
+  function hide(){
+    open=false; dd.style.display="none"; idx=-1;
+    window.removeEventListener('scroll', onScrollOrResize, true);
+    window.removeEventListener('resize', onScrollOrResize, true);
+  }
+
+  function groupTitle(type){ return type==="group"?"Группы":(type==="teacher"?"Преподаватели":"Предметы"); }
+  function render(){
+    if(!items.length){ dd.innerHTML=`<div class="ac-empty">Нет совпадений</div>`; show(); return; }
+    const order=["group","teacher","discipline"];
+    let html="";
+    for(const t of order){
+      const part=items.filter(x=>x.type===t);
+      if(!part.length) continue;
+      html+=`<div class="ac-group">${groupTitle(t)}</div>`;
+      html+=part.map(it=>{
+        const i=items.indexOf(it);
+        return `<div class="ac-item ${i===idx?'active':''}" data-i="${i}">
+          <span>${it.label}</span><small>${it.sub||""}</small></div>`;
+      }).join("");
+    }
+    dd.innerHTML=html; show();
+  }
+
+  dd.addEventListener("mousedown", e=>{
+    const el=e.target.closest(".ac-item"); if(!el) return;
+    pick(items[+el.dataset.i]); hide();
+  });
+
+  async function query(q){
+    const [g,t,d] = await Promise.all([
+      fetch(`/api/suggest/groups/?q=${encodeURIComponent(q)}`).then(r=>r.json()),
+      fetch(`/api/suggest/teachers/?q=${encodeURIComponent(q)}`).then(r=>r.json()),
+      fetch(`/api/suggest/disciplines/?q=${encodeURIComponent(q)}`).then(r=>r.json()),
+    ]);
+    return [
+      ...g.map(x=>({type:"group", id:x.id, label:x.label})),
+      ...t.map(x=>({type:"teacher", id:x.id, label:x.label})),
+      ...d.map(x=>({type:"discipline", id:x.id, label:x.label})),
+    ].slice(0,30);
+  }
+
+  function pick(it){
+    input.value="";
+    if(it.type==="group"){ selected.groupLabel=it.label; }
+    if(it.type==="teacher"){ selected.teacherId=it.id; selected.teacherLabel=it.label; }
+    if(it.type==="discipline"){ selected.disciplineId=it.id; selected.disciplineLabel=it.label; }
+    renderChips(); loadSchedule();
+  }
+
+  input.addEventListener("input", debounce(async e=>{
+    const q=e.target.value.trim();
+    if(!q){ items=[]; render(); return; }
+    items = await query(q); idx = items.length?0:-1; render();
+  }));
+  input.addEventListener("keydown", e=>{
+    if(dd.style.display!=="block") return;
+    if(e.key==="ArrowDown"){ idx=Math.min(items.length-1, idx+1); render(); e.preventDefault(); }
+    if(e.key==="ArrowUp"){ idx=Math.max(0, idx-1); render(); e.preventDefault(); }
+    if(e.key==="Enter"){ if(items[idx]){ pick(items[idx]); hide(); e.preventDefault(); } }
+    if(e.key==="Escape"){ hide(); }
+  });
+  input.addEventListener("blur", ()=> setTimeout(hide, 120));
+})();
+
+/* ===== period controls (instant refresh) ===== */
+function currentPeriod(){
+  const mode = $$("input[name='period']").find(x=>x.checked).value;
+  if(mode==="today"){ const d=new Date(); return {mode,start:fmtDate(d), end:fmtDate(d)}; }
+  if(mode==="week"){ const {start,end}=weekRangeAround(new Date()); return {mode,start,end}; }
+  return {mode:"range", start:$("#dateStart").value, end:$("#dateEnd").value};
+}
+$$("input[name='period']").forEach(r=>{
+  r.addEventListener("change", ()=>{
+    const isRange = r.value==="range" && r.checked;
+    $("#dateStart").disabled = !isRange;
+    $("#dateEnd").disabled = !isRange;
+    loadSchedule(); // мгновенно
+  });
+});
+$("#dateStart").addEventListener("change", ()=> loadSchedule());
+$("#dateEnd").addEventListener("change", ()=> loadSchedule());
+
+/* ===== preferred group boot ===== */
+(async function bootPref(){
+  try{
+    const pref = await fetch("/api/prefs/get_group/").then(r=>r.json());
+    if(pref.group){
+      selected.groupLabel = pref.group;
+      $("#topNote").textContent = "Сохранённая группа для этого устройства";
+      renderChips();
+      loadSchedule();
+    }
+  }catch(e){}
+})();
+$("#btnSaveGroup").addEventListener("click", async ()=>{
+  const code = selected.groupLabel || ($("#inpGlobal").value.trim());
+  if(!code){ $("#topNote").textContent="Введите/выберите группу"; return; }
+  const r=await fetch("/api/prefs/set_group/?group="+encodeURIComponent(code));
+  $("#topNote").textContent = r.ok ? "Группа сохранена" : "Ошибка сохранения";
+});
+
+/* ===== ICS ===== */
+function makeIcsUrl(){
+  const p = currentPeriod();
+  if(selected.teacherId) return `/api/export/ics/?teacher=${selected.teacherId}&start=${p.start}&end=${p.end}`;
+  if(selected.groupLabel) return `/api/export/ics/?group=${encodeURIComponent(selected.groupLabel)}&start=${p.start}&end=${p.end}`;
+  return null;
+}
+$("#btnIcs").addEventListener("click", ()=>{
+  const url = makeIcsUrl(); if(!url) return alert("Сначала выберите группу или преподавателя");
+  const a=document.createElement('a'); a.href=url; a.click();
+});
+
+/* ===== load & render ===== */
+async function loadSchedule(){
+  const p = currentPeriod();
+
+  let url=null, title=null, isRange=(p.mode!=="today");
+  if(selected.teacherId){
+    title=`Преподаватель: ${selected.teacherLabel||selected.teacherId}`;
+    url = isRange
+      ? `/api/schedule/period/?teacher=${selected.teacherId}&start=${p.start}&end=${p.end}`
+      : `/api/schedule/today/?teacher=${selected.teacherId}`;
+  } else if(selected.groupLabel){
+    title=`Группа: ${selected.groupLabel}`;
+    url = isRange
+      ? `/api/schedule/period/?group=${encodeURIComponent(selected.groupLabel)}&start=${p.start}&end=${p.end}`
+      : `/api/schedule/today/?group=${encodeURIComponent(selected.groupLabel)}`;
+  } else {
+    $("#results").innerHTML = `<p class="muted">Выберите группу или преподавателя в поиске сверху.</p>`;
+    $("#subtitle").textContent = "Наберите в поиске и выберите вариант из списка";
+    $("#totalInfo").textContent = "";
+    return;
+  }
+
+  $("#subtitle").textContent = `${title} • ${p.mode==='today'?'Сегодня':(p.start+' — '+p.end)}`;
+
+  const r = await fetch(url);
+  if(!r.ok){ $("#results").innerHTML = `<p class="muted">Ошибка: ${await r.text()}</p>`; return; }
+  let raw = await r.json();
+
+  // привести к формату по дням
+  let days = Array.isArray(raw) && raw.length && raw[0].date ? raw : [{date:p.start, items:raw}];
+
+  // фильтр по предмету (если выбран)
+  if(selected.disciplineId){
+    const name = (selected.disciplineLabel||"").toLowerCase();
+    days = days.map(d => ({
+      date:d.date,
+      items: d.items.filter(it => it.break ? true : String(it.discipline||"").toLowerCase().includes(name))
+    }));
+  }
+
+  // Нормализация: показываем ТОЛЬКО занятия и «перерыв» строго МЕЖДУ занятиями.
+  days = days.map(d => normalizeDay(d));
+
+  renderDays(days);
+}
+
+// оставляем только перерывы, которые действительно между двумя занятиями; если за целый день занятий нет — «Выходной»
+function normalizeDay(day){
+  const items = day.items || [];
+  const hasLesson = items.some(it => !it.break);
+  if(!hasLesson){
+    return { date: day.date, items: [], holiday: true };
+  }
+  const out = [];
+  const lessonIdx = items.map((it,i)=>!it.break?i:null).filter(i=>i!==null);
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    if(!it.break){ out.push(it); continue; }
+    const hasPrev = lessonIdx.some(idx => idx < i);
+    const hasNext = lessonIdx.some(idx => idx > i);
+    if(hasPrev && hasNext){ out.push(it); }
+  }
+  return { date: day.date, items: out, holiday: false };
+}
+
+function badgeState(it, dayDate){
+  const {date:today, hm} = nowInKaliningrad();
+
+  // другой день
+  if(dayDate < today)  return `<span class="badge state-past">прошло</span>`;
+  if(dayDate > today)  return `<span class="badge state-upcoming">будет</span>`;
+
+  // сегодня — считаем по времени
+  const {start, end} = parseTimeRange(it.time);
+  if(cmpHM(hm, start) < 0) return `<span class="badge state-upcoming">будет</span>`;
+  if(cmpHM(hm, end)   > 0) return `<span class="badge state-past">прошло</span>`;
+  return `<span class="badge state-ongoing">идёт</span>`;
+}
+function badgeMode(it){
+  if(it.is_remote){
+    const p = (it.remote_platform || "").trim();
+    const pl = p.toLowerCase();
+    // если платформа указана как "СДО" — не дублируем
+    const extra = p && pl !== "сдо" && pl !== "sdo" ? `: ${p}` : "";
+    return `<span class="badge mode-remote">СДО${extra}</span>`;
+  }
+  return `<span class="badge mode-in">Очно</span>`;
+}
+function badgeType(it){
+  const t = it.lesson_type || "";
+  return t ? `<span class="badge type">${t}</span>` : "";
+}
+
+function renderDays(days){
+  let total=0, html="";
+  for(const day of days){
+    const pairsCount = (day.items||[]).filter(x=>!x.break).length;
+
+    html += `<div class="daycard">
+      <div class="datebar">
+        <div class="vtext">
+          <span class="date"><strong>${ddmmyyyy(day.date)}</strong></span>
+          <span class="dayname">${weekdayRu(day.date)}</span>
+        </div>
+      </div>
+      <div class="daycontent">
+        <div class="daymeta">
+          <strong>${weekdayRu(day.date)}</strong>
+          <span class="muted">${day.holiday ? "Выходной" : (pairsCount+" пар(ы)")}</span>
+        </div>
+        ${day.holiday ? `
+          <div class="holiday" style="margin-top:12px;">Выходной</div>
+        ` : `
+          <div class="cards">
+            ${day.items.map(it => it.break
+              ? (`
+                <div class="break-card">
+                  <div><strong>${it.order}</strong> пара</div>
+                  <div class="muted">${it.time}</div>
+                  <div>Перерыв</div>
+                </div>
+              `)
+              : (`
+                <div class="card">
+                  <div class="slot">
+                    <div class="slot-num">${it.order}</div>
+                    <div class="time">${it.time}</div>
+                  </div>
+                  <div class="main">
+                    <div class="title">${it.discipline}</div>
+                    <div class="subtitle">${it.teacher||""}</div>
+                    <div class="badges">
+                      ${badgeType(it)} ${badgeMode(it)} ${badgeState(it, day.date)}
+                    </div>
+                    ${it.homework ? `<div class="hw">ДЗ: ${it.homework}</div>` : ``}
+                  </div>
+                  <div class="meta">
+                    <div class="room">${it.is_remote ? "Дистанционно" : (it.room || "—")}</div>
+                    <div class="building">${it.is_remote ? (it.remote_platform||"") : (it.building||"")}</div>
+                  </div>
+                </div>
+              `)
+            ).join("")}
+          </div>
+        `}
+      </div>
+    </div>`;
+
+    total += pairsCount;
+  }
+  $("#results").innerHTML = html || `<p class="muted">Ничего не найдено</p>`;
+  $("#totalInfo").textContent = total ? `Пар: ${total}` : "";
+}
+
+/* init dates (week) */
+(function initPeriodUI(){
+  const {start,end}=weekRangeAround(new Date());
+  $("#dateStart").value = start; $("#dateEnd").value = end;
+})();
+</script>
+{% endblock %}

@@ -20,6 +20,45 @@
   .card .sub{color:#6b717a;margin-top:2px}
   .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
   .badge{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid rgba(31,32,36,.14);background:#fff}
+
+  /* === preview: daycards как на главной =================================== */
+  .preview-days{ display:grid; gap:16px; }
+  .daycard{ display:grid; grid-template-columns:56px 1fr; border:1px solid rgba(31,32,36,.14);
+    border-radius:18px; background:rgba(255,255,255,.9); overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,.06)}
+  .datebar{ background:#cb1746; color:#fff; display:flex; align-items:center; justify-content:center; }
+  .datebar .vtext{ writing-mode:vertical-rl; transform:rotate(180deg); font-weight:800; letter-spacing:.5px }
+  .daycontent{ padding:12px }
+  .daymeta{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:8px;
+    border-bottom:1px dashed rgba(31,32,36,.14); color:#3a3c42 }
+  .cards{ display:grid; gap:12px; margin-top:12px }
+  .card.glass{ background:#fff; }
+  .slot{ display:flex; flex-direction:column; align-items:center; gap:6px }
+  .slot-num{ width:42px; height:42px; border-radius:12px; border:1px solid rgba(31,32,36,.14); display:flex; align-items:center;
+    justify-content:center; font-weight:700; background:#fff }
+  .time{ font-size:12px; color:#6b717a }
+  .card.row{ display:grid; grid-template-columns:56px 1fr minmax(120px,auto); gap:12px; align-items:center; padding:12px;
+    border:1px solid rgba(31,32,36,.14); border-radius:16px; background:#fff; box-shadow:0 4px 18px rgba(0,0,0,.06) }
+  .main{ min-width:0 }
+  .title{ font-weight:800; line-height:1.2 }
+  .subtitle{ color:#6b717a; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .meta{ text-align:right }
+  .badges{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px }
+  .badge{ display:inline-flex; align-items:center; height:28px; padding:0 10px; border-radius:999px; border:1px solid rgba(31,32,36,.14);
+    background:#fff; font-size:12px; }
+  .badge.mode-remote{ background:#fff3cd; border-color:#e0b800 }
+  .badge.state-ongoing{ background:#c8f7c5; border-color:#2e7d32 }
+  .badge.state-upcoming{ background:#e3f2fd; border-color:#1976d2 }
+  .badge.state-past{ background:#eceff1; border-color:#b0bec5 }
+  .hw{ margin-top:8px; font-size:13px; background:#f9fafb; border:1px dashed rgba(31,32,36,.14); padding:8px; border-radius:12px }
+  @media (max-width:640px){
+    .daycard{ grid-template-columns:44px 1fr }
+    .card.row{ grid-template-columns:48px 1fr }
+    .badges{ flex-wrap:nowrap; overflow-x:auto; gap:8px; -webkit-overflow-scrolling:touch; scrollbar-width:none }
+    .badges::-webkit-scrollbar{ display:none }
+  }
+  html[data-theme="dark"] .daycard{ background:rgba(31,34,40,.86); border-color:rgba(255,255,255,.1) }
+  html[data-theme="dark"] .card.row, html[data-theme="dark"] .badge{ background:#24262b; border-color:rgba(255,255,255,.1) }
+  html[data-theme="dark"] .hw{ background:#23272b; border-color:rgba(255,255,255,.12) }
 </style>
 {% endblock %}
 
@@ -67,13 +106,14 @@
     <div style="margin-top:10px;display:flex;gap:10px">
       <button id="btnFetch" class="btn">Подтянуть</button>
       <button id="btnImport" class="btn" title="Записать в локальную БД" disabled>Импортировать</button>
+      <button class="btn" id="btnConflicts" type="button">Показать конфликты</button>
     </div>
     <p id="note" class="muted" style="margin-top:8px"></p>
   </aside>
 
   <section class="glass pad">
     <h3 class="h">Предпросмотр</h3>
-    <div id="preview" class="cards"></div>
+    <div id="preview" class="preview-days"></div>
   </section>
 </div>
 {% endblock %}
@@ -118,7 +158,7 @@ async function fetchDemo(){
 
   const u = new URL("/api/integrations/ranepa/fetch/", location.origin);
   u.searchParams.set("kind", $("#kind").value);
-  u.searchParams.set("q", $("#q").value.trim());        // МОЖНО пустым => «всё»
+  u.searchParams.set("q", $("#q").value.trim());
   u.searchParams.set("sem", $("#sem").value);
   u.searchParams.set("start", $("#start").value);
   u.searchParams.set("end", $("#end").value);
@@ -126,17 +166,29 @@ async function fetchDemo(){
   const r = await fetch(u);
   if(!r.ok){ $("#note").textContent = "Ошибка: " + await r.text(); return; }
   const data = await r.json();
-  const items = data.items || [];
+  let items = (data.items||[]).map(it => ({
+    ...it,
+    // ВАЖНО: зачистка «дурацкого энтера» в начале названия дисциплины
+    discipline: stripLeadingBreaks(it.discipline),
+  }));
   LAST_ITEMS = items;
   $("#btnImport").disabled = !items.length;
 
-  const box = $("#preview");
+  // группировка по дням (скрываем воскресенье на предпросмотре)
+  const byDate = {};
   for(const it of items){
-    const time = TSMAP[it.order] || (it.time||"");
-    const building = it.is_remote ? null : deriveBuilding(it);
-    box.insertAdjacentHTML("beforeend", cardHTML(it, time, building));
+    if(!it.date) continue;
+    const wd = new Date(it.date+'T00:00:00').getDay(); // 0=вс
+    if(wd===0) continue; // не показываем воскресенье
+    (byDate[it.date] ||= []).push(it);
   }
-  $("#note").textContent = `Найдено занятий: ${items.length}${$("#q").value.trim() ? "" : " (вся неделя)"}`;
+  const days = Object.keys(byDate).sort().map(d => ({
+    date:d,
+    items: byDate[d].sort((a,b)=> (a.order??99)-(b.order??99))
+  }));
+
+  renderPreviewDays(days);
+  $("#note").textContent = `Найдено занятий: ${items.length}`;
 }
 
 function deriveBuilding(it){
@@ -172,6 +224,42 @@ function cardHTML(it, time, building){
   `;
 }
 
+// --- helpers, дополним ---
+function ddmmyyyy(dateStr){ const [y,m,d]=dateStr.split('-'); return `${d}.${m}.${y}`; }
+function weekdayRu(dateStr){
+  const map=['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'];
+  const d=new Date(dateStr+'T00:00:00'); return map[(d.getDay()+6)%7];
+}
+// зачистка ведущих <br>, \n и пробелов
+function stripLeadingBreaks(s){
+  return String(s||'').replace(/^(?:\s*(?:<br\s*\/?>|\n|\r)+\s*)+/i,'').replace(/\u00A0/g,' ').trim();
+}
+function badgeType(it){ return it.lesson_type ? `<span class="badge">${it.lesson_type}</span>` : ''; }
+function badgeMode(it){
+  if(it.is_remote){
+    const p=(it.remote_platform||'').trim(); const pl=p.toLowerCase();
+    const extra = p && pl!=='сдо' && pl!=='sdo' ? `: ${p}` : '';
+    return `<span class="badge mode-remote">СДО${extra}</span>`;
+  }
+  return `<span class="badge">Очно</span>`;
+}
+function cmpHM(a,b){ return a===b?0:(a<b?-1:1); }
+function parseRangeFromTS(order){ const s=TSMAP[order]; if(!s) return null;
+  const m=s.match(/(\d{1,2}):(\d{2}).*?(\d{1,2}):(\d{2})/); if(!m) return null;
+  const pad=x=>String(x).padStart(2,'0'); return {start:`${pad(m[1])}:${m[2]}`, end:`${pad(m[3])}:${m[4]}`};
+}
+function badgeState(it, dayDate){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date());
+  const get=t=>parts.find(p=>p.type===t).value;
+  const today=`${get('year')}-${get('month')}-${get('day')}`; const hm=`${get('hour')}:${get('minute')}`;
+  if(dayDate<today) return `<span class="badge state-past">прошло</span>`;
+  if(dayDate>today) return `<span class="badge state-upcoming">будет</span>`;
+  const r=parseRangeFromTS(it.order); if(!r) return '';
+  if(cmpHM(hm,r.start)<0) return `<span class="badge state-upcoming">будет</span>`;
+  if(cmpHM(hm,r.end)>0)  return `<span class="badge state-past">прошло</span>`;
+  return `<span class="badge state-ongoing">идёт</span>`;
+}
+
 async function importDemo(){
   if(!LAST_ITEMS.length) return;
   $("#note").textContent = "Импортирую...";
@@ -192,5 +280,62 @@ async function importDemo(){
   $("#note").innerHTML = `Импорт: создано ${t.created||0}, обновлено ${t.updated||0}, пропущено ${t.skipped||0}, ошибок ${t.errors||0}`
     + (res.log_url ? ` — <a href="${res.log_url}" target="_blank">Скачать отчёт</a>` : "");
 }
+
+function renderPreviewDays(days){
+  const box = $("#preview");
+  if(!days.length){ box.innerHTML = `<div class="muted">Нет данных</div>`; return; }
+
+  let html='';
+  for(const day of days){
+    const pairsCount = (day.items||[]).filter(x=>!x.break).length;
+    html += `<div class="daycard">
+      <div class="datebar"><div class="vtext">${weekdayRu(day.date)} · ${ddmmyyyy(day.date)}</div></div>
+      <div class="daycontent">
+        <div class="daymeta">
+          <strong>${weekdayRu(day.date)}</strong>
+          <span class="muted">${pairsCount} пар(ы)</span>
+        </div>
+        <div class="cards">` +
+        day.items.map(it=>{
+          const time = TSMAP[it.order] || (it.time||'');
+          const building = it.is_remote ? '' : (it.building||'');
+          return `
+            <div class="card row">
+              <div class="slot">
+                <div class="slot-num">${it.order??'—'}</div>
+                <div class="time">${time}</div>
+              </div>
+              <div class="main">
+                <div class="title">${it.discipline||'—'}</div>
+                <div class="subtitle">${[it.teacher,it.group].filter(Boolean).join(' · ')}</div>
+                <div class="badges">
+                  ${badgeType(it)} ${badgeMode(it)} ${badgeState(it, day.date)}
+                </div>
+                ${it.homework ? `<div class="hw">ДЗ: ${it.homework}</div>`:''}
+              </div>
+              <div class="meta">
+                <div class="room">${it.is_remote ? 'Дистанционно' : (it.room||'—')}</div>
+                <div class="building">${it.is_remote ? (it.remote_platform||'') : (building||'')}</div>
+              </div>
+            </div>`;
+        }).join('') +
+        `</div>
+      </div>
+    </div>`;
+  }
+  box.innerHTML = html;
+}
+
+// просмотр конфликтов импорта
+document.getElementById('btnConflicts').addEventListener('click', ()=>{
+  const qs = new URLSearchParams({
+    kind:  document.getElementById('kind').value || 'group',
+    q:     document.getElementById('q').value || '',
+    sem:   document.getElementById('sem').value || '1',
+    start: document.getElementById('start').value,
+    end:   document.getElementById('end').value,
+  }).toString();
+  location.href = `/admin/conflicts/?${qs}`;
+});
 </script>
 {% endblock %}

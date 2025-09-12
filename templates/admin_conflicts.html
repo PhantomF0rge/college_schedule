@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Импорт — Конфликты{% endblock %}
+
+{% block head %}
+<style>
+  .glass{ padding:14px; }
+  .row{ display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:8px; }
+  @media (max-width:900px){ .row{ grid-template-columns: 1fr; } }
+  .tbl{ width:100%; border-collapse: collapse; }
+  .tbl th, .tbl td{ border:1px solid var(--bd); padding:8px; text-align:left; }
+  .muted{ color:var(--muted); }
+  .bad{ background: color-mix(in srgb, #ffebee 70%, transparent); }
+  html[data-theme="dark"] .bad{ background: color-mix(in srgb, #3b1c22 80%, transparent); }
+  .chip{ display:inline-block; padding:4px 8px; border:1px solid var(--bd); border-radius:999px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass">
+  <h2 style="margin:0 0 10px;">Конфликтующие пары (предпросмотр)</h2>
+  <div class="row" style="margin-bottom:10px;">
+    <label>Вид
+      <select id="kind">
+        <option value="group">Группы</option>
+        <option value="teacher">Преподаватели</option>
+      </select>
+    </label>
+    <label>Поиск
+      <input id="q" placeholder="Код группы / ФИО"/>
+    </label>
+    <label>Семестр
+      <select id="sem">
+        <option value="1">1</option>
+        <option value="2">2</option>
+      </select>
+    </label>
+    <div class="row" style="grid-template-columns: 1fr 1fr; gap:8px;">
+      <label>С<input type="date" id="start"></label>
+      <label>По<input type="date" id="end"></label>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:8px; margin-bottom:12px;">
+    <button class="btn btn-accent" id="btnFetch">Показать конфликты</button>
+    <a class="btn" id="btnBack" href="{% url 'admin_integrations' %}">← К интеграциям</a>
+  </div>
+
+  <div id="sum" class="muted" style="margin-bottom:8px;"></div>
+
+  <div style="overflow:auto;">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Пара</th>
+          <th>Время</th>
+          <th>Группа(ы)</th>
+          <th>Дисциплина</th>
+          <th>Тип</th>
+          <th>Преподаватель</th>
+          <th>Место / Платформа</th>
+          <th>Причина</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const $=s=>document.querySelector(s);
+function qs(obj){ return new URLSearchParams(obj).toString(); }
+function ddmmyyyy(x){ const [y,m,d]=x.split('-'); return `${d}.${m}.${y}`; }
+
+// дефолт: текущая неделя
+(function initRange(){
+  const now=new Date(), day=(now.getDay()+6)%7, s=new Date(now), e=new Date(now);
+  s.setDate(now.getDate()-day); e.setDate(s.getDate()+6);
+  $('#start').value = s.toISOString().slice(0,10);
+  $('#end').value   = e.toISOString().slice(0,10);
+  // подставить из URL, если есть
+  const u=new URL(location.href);
+  ['kind','q','sem','start','end'].forEach(k=>{
+    if(u.searchParams.get(k)) $('#'+k).value = u.searchParams.get(k);
+  });
+})();
+
+async function fetchConflicts(){
+  const p = {
+    kind:  $('#kind').value || 'group',
+    q:     $('#q').value || '',
+    sem:   $('#sem').value || '1',
+    start: $('#start').value,
+    end:   $('#end').value,
+  };
+  // сохраняем параметры в адресную строку
+  history.replaceState(null,'',`?${qs(p)}`);
+
+  const url = `/api/integrations/ranepa/fetch/?${qs(p)}`;
+  const r = await fetch(url);
+  if(!r.ok){ $('#sum').textContent = 'Ошибка загрузки: '+(await r.text()); return; }
+  const data = await r.json();
+  const rep = data.report || {};
+  const list = Array.isArray(rep.samples) ? rep.samples : [];
+
+  $('#sum').innerHTML =
+    `Создано: <b>${rep.created||0}</b> • Обновлено: <b>${rep.updated||0}</b> • `+
+    `Ошибок: <b>${rep.errors||0}</b> • Причины: ${Object.keys(rep.reasons||{}).join(', ')||'—'}`;
+
+  const rows = list.map(s=>{
+    const it = s.item || {};
+    const place = it.is_remote ? (it.remote_platform||'СДО') : [it.building, it.room].filter(Boolean).join(' · ');
+    return `<tr class="bad">
+      <td>${it.date?ddmmyyyy(it.date):''}</td>
+      <td>${it.order??''}</td>
+      <td>${it.time??''}</td>
+      <td>${it.group??''}</td>
+      <td>${it.discipline??''}</td>
+      <td>${it.lesson_type??''}</td>
+      <td>${it.teacher??''}</td>
+      <td>${place||''}</td>
+      <td><span class="chip">${s.reason||'Не указано'}</span></td>
+    </tr>`;
+  }).join('');
+  $('#tbody').innerHTML = rows || `<tr><td colspan="9" class="muted">Конфликты не найдены</td></tr>`;
+}
+
+$('#btnFetch').addEventListener('click', fetchConflicts);
+// автозагрузка при входе со ссылкой
+fetchConflicts();
+</script>
+{% endblock %}

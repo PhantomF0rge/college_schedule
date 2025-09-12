@@ -23,6 +23,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from api import views as api_views
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import TemplateView
 
 def is_admin(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser or user.groups.filter(name="Admin").exists())
@@ -66,6 +67,7 @@ urlpatterns = [
     re_path(r"^admin/overview/?$",  admin_overview_page,  name="admin_overview"),
     re_path(r"^admin/studio/?$",    admin_studio_page,    name="admin_studio"),
     re_path(r"^admin/integrations/?$", admin_integrations_page, name="admin_integrations"),
+    path("admin/conflicts/", TemplateView.as_view(template_name="admin_conflicts.html"), name="admin_conflicts"),
 
     # алиасы на случай конфликтов/отладки (необязательно)
     path("generator/", admin_generator_page),

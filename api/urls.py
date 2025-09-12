@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from .views import ranepa_conflicts
+from django.views.generic import TemplateView
 
 urlpatterns = [
     path("suggest/groups/", views.suggest_groups),
@@ -60,4 +62,7 @@ urlpatterns = [
 
     path("integrations/ranepa/fetch/",  views.ranepa_fetch,  name="ranepa_fetch"),
     path("integrations/ranepa/import/", views.ranepa_import, name="ranepa_import"),
+
+    path("integrations/ranepa/conflicts/", ranepa_conflicts, name="ranepa_conflicts"),
+    path("admin/conflicts/", TemplateView.as_view(template_name="admin_integrations.html"), name="admin_conflicts"),
 ]

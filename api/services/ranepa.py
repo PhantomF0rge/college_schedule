@@ -13,7 +13,7 @@ MONTH_SLUGS = {
 RU_DAYS = ["понедельник","вторник","среда","четверг","пятница","суббота","воскресенье"]
 RU_DAY_TO_IDX = {d:i for i,d in enumerate(RU_DAYS)}
 
-WS = re.compile(r"\s+")
+WS = re.compile(r"^(?:\s*(?:<br\s*/?>|\n|\r)+\s*)+")
 def norm(s: str | None) -> str:
     """Убираем \n, \r, \t, неразрывные пробелы и схлопываем до одного пробела."""
     return WS.sub(" ", (s or "").replace("\xa0", " ")).strip()
