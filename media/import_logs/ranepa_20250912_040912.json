@@ -1,0 +1,211 @@
+{
+  "params": {
+    "start": "2025-09-08",
+    "end": "2025-09-13",
+    "kind": "group",
+    "q": ""
+  },
+  "report": {
+    "created": 233,
+    "updated": 1236,
+    "skipped": 0,
+    "errors": 75,
+    "reasons": {
+      "ValidationError": 75
+    },
+    "samples": [
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 1,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Удалова О.Д.",
+          "group": "24ЭБ1-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 2,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Удалова О.Д.",
+          "group": "24ЭБ2-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 2,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Матухно Е.В.",
+          "group": "24ИСПп4-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 3,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Матухно Е.В.",
+          "group": "24ИСПп6-о11",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 5,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Васильев А.В.",
+          "group": "22Т3-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 5,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Матухно Е.В.",
+          "group": "23ИСПп2-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-08",
+          "order": 6,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Захаров О.Ю.",
+          "group": "23ОД2-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-09",
+          "order": 1,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Захаров О.Ю.",
+          "group": "25ОД1-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-09",
+          "order": 1,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Васильев А.В.",
+          "group": "25ТГт1-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-09",
+          "order": 2,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Матухно Е.В.",
+          "group": "25ИСПп2-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-09",
+          "order": 2,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Васильев А.В.",
+          "group": "25ТГт2-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-09",
+          "order": 4,
+          "time": null,
+          "discipline": "Физическая культура",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Захаров О.Ю.",
+          "group": "23К1-о9",
+          "room": "1",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      }
+    ]
+  }
+}

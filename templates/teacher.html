@@ -5,116 +5,191 @@
 <style>
   :root{
     --accent:#cb1746;
-    /* мягкие оттенки для таблиц в обеих темах */
-    --tbl-head: color-mix(in srgb, var(--bg) 70%, #000);
-    --tbl-line: var(--bd);
-    --glass-aura: color-mix(in srgb, var(--accent) 10%, transparent);
-    --chip-bg: color-mix(in srgb, var(--bg) 70%, #fff);
-    --chip-bd: color-mix(in srgb, var(--bd) 70%, var(--accent) 0%);
-    --chip-on: color-mix(in srgb, var(--accent) 16%, transparent);
-    --remote-bg: color-mix(in srgb, var(--accent) 12%, transparent);
-    --break-bg: color-mix(in srgb, var(--bg) 86%, #000);
-    --ongo-bg: color-mix(in srgb, #22c55e 12%, transparent);
-    --past-bg: color-mix(in srgb, #6b7280 10%, transparent);
-    --up-bg: color-mix(in srgb, #60a5fa 12%, transparent);
+
+    /* мягкие оттенки (берут основу из base.html переменных) */
+    --aura: color-mix(in srgb, var(--accent) 10%, transparent);
+
+    --row-ongo: color-mix(in srgb, #22c55e 12%, transparent);
+    --row-up:   color-mix(in srgb, #60a5fa 12%, transparent);
+    --row-past: color-mix(in srgb, #6b7280 10%, transparent);
+    --row-remote: color-mix(in srgb, var(--accent) 12%, transparent);
+
+    --chip-bg: color-mix(in srgb, var(--card) 92%, transparent);
+    --chip-bd: color-mix(in srgb, var(--bd) 85%, var(--accent) 0%);
+    --chip-on: color-mix(in srgb, var(--accent) 14%, transparent);
   }
-  /* === контейнер === */
+
+  /* ====== ФИКС фона шапки страницы (пропадала подложка при скролле) ====== */
+  /* Действует только на этой странице */
+  header, .site-header, .app-header{
+    position: sticky;
+    top: 0;
+    background: color-mix(in srgb, var(--card) 86%, transparent);
+    -webkit-backdrop-filter: saturate(140%) blur(6px);
+    backdrop-filter: saturate(140%) blur(6px);
+    border-bottom: 1px solid var(--glass-bd, var(--bd));
+    z-index: 2000;
+  }
+
+  /* ===== Контейнеры / панель фильтров ===== */
   .t-wrap{ display:grid; gap:12px; }
   .bar{
     display:flex; flex-wrap:wrap; gap:10px; align-items:end;
-    background: var(--glass); border:1px solid var(--glass-bd); border-radius:12px; padding:12px;
+    background: var(--glass); border:1px solid var(--glass-bd); border-radius:14px; padding:12px;
     box-shadow: 0 10px 26px rgba(0,0,0,.06), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
   }
   .bar .field{ display:flex; flex-direction:column; gap:6px; }
   .bar label{ font-size:12px; color:var(--muted); }
   .bar input[type="date"], .bar select{
-    padding:10px 12px; border-radius:10px; border:1px solid var(--bd); background:var(--card); color:var(--text);
-    min-width: 180px;
+    padding:10px 12px; border-radius:12px; border:1px solid var(--bd); background:var(--card); color:var(--text);
+    min-width: 180px; box-shadow: 0 1px 0 rgba(255,255,255,.15) inset;
   }
   .bar button{
-    padding:10px 14px; border-radius:10px; border:1px solid color-mix(in srgb, var(--accent) 56%, var(--bd));
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, #fff), var(--card));
-    color: var(--text); font-weight:600; cursor:pointer;
-    box-shadow: 0 1px 0 rgba(255,255,255,.25) inset;
+    padding:10px 14px; border-radius:12px; border:1px solid color-mix(in srgb, var(--accent) 56%, var(--bd));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--card)), var(--card));
+    color: var(--text); font-weight:700; cursor:pointer;
+    box-shadow: 0 1px 0 rgba(255,255,255,.22) inset;
   }
   .stat{
-    padding:10px 12px; border-radius:10px; border:1px solid var(--glass-bd);
+    padding:10px 12px; border-radius:12px; border:1px solid var(--glass-bd);
     background: var(--glass); color:var(--text);
   }
 
-  /* === день === */
+  /* ===== День / шапка дня ===== */
   .day{
-    border:1px solid var(--bd); border-radius:14px; overflow:hidden; background:var(--card);
+    border:1px solid var(--bd); border-radius:16px; overflow:hidden; background:var(--card);
     box-shadow: 0 8px 24px rgba(0,0,0,.06), 0 0 0 1px color-mix(in srgb, var(--accent) 7%, transparent) inset;
   }
   .day-h{
     display:flex; justify-content:space-between; align-items:center; gap:10px;
-    padding:10px 12px; background: var(--glass-aura);
+    padding:12px 14px; background: var(--aura);
     border-bottom:1px solid var(--bd);
   }
   .day-h strong{ font-size:16px; }
   .day-h .muted{ color:var(--muted); }
 
-  /* === таблица === */
-  .tablewrap{ overflow:auto; }
-  table.t{ width:100%; border-collapse:separate; border-spacing:0; }
-  .t th, .t td{
-    padding:10px 12px; border-bottom:1px solid var(--tbl-line); text-align:left; white-space:nowrap;
+  /* ===== Список карточек ===== */
+  .cards{
+    display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px;
+    padding:10px;
   }
-  .t th{ position:sticky; top:0; background:var(--tbl-head); color:var(--text); font-weight:700; z-index:1; }
-  .t tr:last-child td{ border-bottom:0; }
-  .num{ width:58px; text-align:center; }
-  .time{ width:110px; font-variant-numeric: tabular-nums; color:var(--muted); }
-  .room{ width:220px; }
-
-  /* состояния строк */
-  .tr-remote{ background: var(--remote-bg); }
-  .tr-ongo{ background: var(--ongo-bg); }
-  .tr-past{ background: var(--past-bg); }
-  .tr-up{ background: var(--up-bg); }
-  .tr-break td{
-    background: var(--break-bg);
-    border-top: 1px dashed var(--tbl-line);
-    border-bottom: 1px dashed var(--tbl-line);
-    color: var(--muted);
-    font-style: italic;
+  @media (max-width: 1100px){
+    .cards{ grid-template-columns:1fr; }
   }
 
-  /* бейдж-пилюля */
+  .pair-card{
+    display:flex; gap:12px; align-items:stretch;
+    border:1px solid var(--bd); border-radius:14px; padding:12px;
+    background: var(--card);
+    box-shadow: 0 4px 14px rgba(0,0,0,.06);
+    position: relative;
+  }
+  .pair-card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:6px; border-top-left-radius:14px; border-bottom-left-radius:14px;
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .pair-card.card-remote{ background: var(--row-remote); }
+  .pair-card.card-ongo::before{ background: color-mix(in srgb, #22c55e 56%, transparent); }
+  .pair-card.card-up::before{ background: color-mix(in srgb, #60a5fa 56%, transparent); }
+  .pair-card.card-past::before{ background: color-mix(in srgb, #6b7280 56%, transparent); }
+
+  .pair-num{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    min-width: 74px; padding:8px;
+    border:1px dashed var(--bd); border-radius:12px; background: color-mix(in srgb, var(--card) 92%, transparent);
+  }
+  .pair-num b{ font-size:20px; line-height:1; }
+  .pair-num small{ color:var(--muted); font-variant-numeric: tabular-nums; }
+
+  .pair-meta{ display:flex; flex-direction:column; gap:6px; min-width:0; flex:1; }
+  .row{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .row strong{ font-weight:800; }
+  .muted{ color:var(--muted); }
+
   .chip{
-    display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 10px;
+    display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px;
     border:1px solid var(--chip-bd); background: var(--chip-bg); border-radius:999px; font-size:12px;
   }
   .chip.on{ background: var(--chip-on); border-color: color-mix(in srgb, var(--accent) 40%, var(--bd)); }
 
-  /* кнопки-иконки в таблице */
-  .tbl-actions{ display:flex; gap:8px; }
+  .actions{
+    margin-left:auto; display:flex; gap:8px; align-items:center;
+  }
   .btn-sm{
-    padding:6px 10px; border-radius:8px; border:1px solid var(--bd); background:var(--card); cursor:pointer;
+    padding:6px 10px; border-radius:10px; border:1px solid var(--bd);
+    background:var(--card); color:var(--text); cursor:pointer; font-weight:600;
+    transition:box-shadow .2s ease, transform .05s ease;
+  }
+  .btn-sm:hover{ box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  .btn-sm:active{ transform:translateY(1px); }
+
+  /* Перерыв между парами */
+  .break{
+    border:1px dashed var(--bd); border-radius:12px; padding:10px 12px; color:var(--muted);
+    background: color-mix(in srgb, var(--card) 96%, transparent);
   }
 
-  /* выходной */
-  .holiday{
-    padding:16px; text-align:center; color:var(--muted); background:var(--glass);
+  /* ===== Модальные окна (Liquid Glass), единый скролл для ПК и мобилки ===== */
+  .modal{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:1000;
   }
+  .modal.show{ display:flex; }
+  .modal::before{
+    content:""; position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(2px);
+  }
+  .modal-card{
+    position:relative; width:min(720px, 92vw); background:var(--glass); border:1px solid var(--glass-bd);
+    border-radius:16px; padding:16px;
+    box-shadow: 0 16px 42px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
+    max-height: 92vh; display:flex; flex-direction:column; overflow:hidden;
+  }
+  .modal-h{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .modal-h h3{ margin:0; font-size:18px; }
+  .modal-body{ display:grid; gap:10px; overflow:auto; min-height:0; -webkit-overflow-scrolling:touch; }
+  .modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
 
-  /* мобильчик */
+  .input, .textarea, .select{
+    width:100%; padding:10px 12px; border:1px solid var(--bd); border-radius:12px;
+    background:var(--card); color:var(--text);
+  }
+  .textarea{ min-height:110px; resize:vertical; }
+
+  .btn-primary{
+    padding:10px 14px; border-radius:12px; border:1px solid color-mix(in srgb, var(--accent) 56%, var(--bd));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--card)), var(--card));
+    color: var(--text); font-weight:800; cursor:pointer;
+  }
+  .btn-ghost{ padding:10px 14px; border-radius:12px; border:1px solid var(--bd); background:var(--card); color:var(--text); }
+
+  /* Список свободных кабинетов в модалке */
+  .rooms{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .room-card{
+    display:flex; gap:10px; align-items:center;
+    border:1px solid var(--bd); border-radius:12px; padding:10px; background:var(--card);
+  }
+  .room-card input{ margin:0; }
+  .room-meta{ display:flex; flex-direction:column; line-height:1.2; min-width:0; }
+  .room-meta small{ color:var(--muted); }
+  #roomsWrap{ max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+
+  /* ===== Мобилка ===== */
   @media (max-width: 880px){
     .bar{ gap:8px; }
     .bar .field{ width: calc(50% - 6px); }
     .bar .field.full{ width:100%; }
     .bar input[type="date"], .bar select{ min-width: unset; }
     .day-h strong{ font-size:15px; }
-    .tablewrap{ -webkit-overflow-scrolling: touch; }
-    .time{ width:92px; }
-    .room{ width:180px; }
+    .rooms{ grid-template-columns:1fr; }
+    .modal-card{ padding:14px; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="t-wrap">
-  <!-- панель фильтров -->
+  <!-- Панель фильтров -->
   <div class="bar">
     <div class="field">
       <label>Начало</label>
@@ -136,78 +211,104 @@
     </div>
   </div>
 
-  <!-- календарь -->
+  <!-- Календарь -->
   <div id="calendar" class="t-days"></div>
+</div>
+
+<!-- ===== MODAL: Домашнее задание ===== -->
+<div id="modalHw" class="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="hwTitle">
+    <div class="modal-h">
+      <h3 id="hwTitle">Домашнее задание</h3>
+      <button class="btn-ghost" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="hwLessonId">
+      <label class="muted">Текст задания</label>
+      <textarea id="hwText" class="textarea" placeholder="Кратко опишите ДЗ…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" data-close>Отмена</button>
+      <button class="btn-primary" id="hwSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Смена кабинета ===== -->
+<div id="modalRoom" class="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="roomTitle">
+    <div class="modal-h">
+      <h3 id="roomTitle">Смена кабинета</h3>
+      <button class="btn-ghost" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="roomLessonId">
+      <div id="roomsWrap">
+        <div class="muted">Загрузка свободных кабинетов…</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" data-close>Отмена</button>
+      <button class="btn-primary" id="roomApply" disabled>Применить</button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-/* ===== helpers ===== */
+/* ===== Helpers ===== */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
 function fmt(d){ return d.toISOString().slice(0,10); }
-function weekdayRu(dateStr){
-  const map=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
-  const d=new Date(dateStr+'T00:00:00'); return map[d.getDay()];
-}
 function ddmmyyyy(dateStr){ const [y,m,d]=dateStr.split('-'); return `${d}.${m}.${y}`; }
+function weekdayRu(dateStr){ const m=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота']; const d=new Date(dateStr+'T00:00:00'); return m[d.getDay()]; }
 function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
-
-/* Калининградское "сейчас" (для статуса строк) */
 function nowInKgd(){
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone:'Europe/Kaliningrad',
-    year:'numeric', month:'2-digit', day:'2-digit',
-    hour:'2-digit', minute:'2-digit', hour12:false
-  }).formatToParts(new Date());
-  const get=t=>parts.find(p=>p.type===t).value;
-  return { date:`${get('year')}-${get('month')}-${get('day')}`, hm:`${get('hour')}:${get('minute')}` };
+  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+  const g=t=>parts.find(p=>p.type===t).value; return { date:`${g('year')}-${g('month')}-${g('day')}`, hm:`${g('hour')}:${g('minute')}` };
 }
-function parseHHMMrange(s){
-  if(!s) return {start:"00:00", end:"23:59"};
-  const m=String(s).match(/(\d{1,2}):(\d{2}).*?(\d{1,2}):(\d{2})/);
-  if(!m) return {start:"00:00", end:"23:59"};
-  const P=x=>String(x).padStart(2,'0');
-  return {start:`${P(m[1])}:${m[2]}`, end:`${P(m[3])}:${m[4]}`};
-}
+function parseHHMMrange(s){ if(!s) return {start:"00:00",end:"23:59"}; const m=String(s).match(/(\d{1,2}):(\d{2}).*?(\d{1,2}):(\d{2})/); if(!m) return {start:"00:00",end:"23:59"}; const P=x=>String(x).padStart(2,'0'); return {start:`${P(m[1])}:${m[2]}`, end:`${P(m[3])}:${m[4]}`}; }
 function cmpHM(a,b){ return a===b?0:(a<b?-1:1); }
 
-/* ===== default week range ===== */
+/* ===== Default week ===== */
 function setDefaultRange(){
   const now=new Date(); const day=now.getDay(); const diffToMon=(day+6)%7;
   const start=new Date(now); start.setDate(now.getDate()-diffToMon);
   const end=new Date(start); end.setDate(start.getDate()+6);
-  document.getElementById('start').value = fmt(start);
-  document.getElementById('end').value   = fmt(end);
-}
-setDefaultRange();
-
-document.getElementById('btnShow').addEventListener('click', loadAll);
-
-/* динамически наполняем селект групп после первой загрузки */
-function fillGroupFilter(days){
-  const sel=document.getElementById('fltGroup');
-  const before = sel.value;
-  const set=new Set();
-  for(const d of days){
-    for(const it of (d.items||[])){
-      if(!it.break && it.group) set.add(it.group);
-    }
-  }
-  const current = sel.value;
-  sel.innerHTML = `<option value="">Все группы</option>` + [...set].sort().map(g=>`<option>${g}</option>`).join('');
-  if([...set].includes(before)) sel.value = before;
+  $('#start').value = fmt(start); $('#end').value = fmt(end);
 }
 
-/* Нормализация дня:
-   - удаляем «перерыв» если он не между двумя занятиями
-   - можно фильтровать по группе
-   - если занятий не осталось — выставляем holiday
-*/
+/* ===== Modal engine ===== */
+function bindModal(root){
+  const close = ()=>{ root.classList.remove('show'); root.setAttribute('aria-hidden','true'); };
+  root.addEventListener('click', e=>{ if(e.target===root || e.target.hasAttribute('data-close')) close(); });
+  root.addEventListener('keydown', e=>{ if(e.key==='Escape') close(); });
+  return { open(){ root.classList.add('show'); root.removeAttribute('aria-hidden'); }, close };
+}
+const modalHw = bindModal($('#modalHw'));
+const modalRoom = bindModal($('#modalRoom'));
+
+/* ===== Normalizers / state ===== */
+function rowState(item, dayDate){
+  const {date:today, hm} = nowInKgd();
+  const {start,end} = parseHHMMrange(item.time);
+  if(dayDate < today) return 'card-past';
+  if(dayDate > today) return 'card-up';
+  if(cmpHM(hm,end) > 0) return 'card-past';
+  if(cmpHM(hm,start) < 0) return 'card-up';
+  return 'card-ongo';
+}
+
+/* Оставляем перерывы только между парами, выкидываем воскресенье */
 function normalizeDay(day, groupFilter){
+  // skip Sunday entirely
+  const dow = new Date(day.date+'T00:00:00').getDay();
+  if(dow === 0) return { date: day.date, items: [], holiday: true, skip:true };
+
   let items = (day.items||[]).slice();
-  if(groupFilter){
-    items = items.filter(it => it.break ? true : (String(it.group||"")===groupFilter));
-  }
+  if(groupFilter) items = items.filter(it => it.break ? true : String(it.group||"")===groupFilter);
+
   const lessonIdx = items.map((it,i)=>!it.break?i:null).filter(i=>i!==null);
   const out=[];
   for(let i=0;i<items.length;i++){
@@ -215,31 +316,28 @@ function normalizeDay(day, groupFilter){
     if(!it.break){ out.push(it); continue; }
     const hasPrev = lessonIdx.some(idx=>idx<i);
     const hasNext = lessonIdx.some(idx=>idx>i);
-    if(hasPrev && hasNext) out.push(it);  // только между занятиями
+    if(hasPrev && hasNext) out.push(it);
   }
   const hasLesson = out.some(x=>!x.break);
-  return { date: day.date, items: out, holiday: !hasLesson };
+  return { date: day.date, items: out, holiday: !hasLesson, skip:false };
 }
 
-/* Для строки статуса: past / ongoing / upcoming */
-function rowState(item, dayDate){
-  const {date:today, hm} = nowInKgd();
-  const {start,end} = parseHHMMrange(item.time);
-  if(dayDate < today) return 'tr-past';
-  if(dayDate > today) return 'tr-up';
-  if(cmpHM(hm,end) > 0) return 'tr-past';
-  if(cmpHM(hm,start) < 0) return 'tr-up';
-  return 'tr-ongo';
+function fillGroupFilter(days){
+  const sel=$('#fltGroup'); const keep=sel.value; const set=new Set();
+  for(const d of days){ for(const it of (d.items||[])){ if(!it.break && it.group) set.add(it.group); } }
+  sel.innerHTML = `<option value="">Все группы</option>` + [...set].sort().map(g=>`<option>${g}</option>`).join('');
+  if([...set].includes(keep)) sel.value = keep;
 }
 
-/* ====== RENDER ====== */
+/* ===== Render (карточки) ===== */
 function render(days){
-  const wrap=document.getElementById('calendar');
-  const groupFilter=document.getElementById('fltGroup').value;
+  const wrap=$('#calendar'); const groupFilter=$('#fltGroup').value;
   let html="";
 
   for(const dRaw of days){
     const day = normalizeDay(dRaw, groupFilter);
+    if(day.skip) continue; // не показываем воскресенье
+
     const pairs = (day.items||[]).filter(x=>!x.break).length;
 
     html += `<div class="day">
@@ -249,118 +347,166 @@ function render(days){
       </div>`;
 
     if(day.holiday){
-      html += `<div class="holiday">Выходной</div></div>`;
+      html += `<div class="cards" style="padding:12px;"><div class="break" style="grid-column:1/-1;">Выходной</div></div></div>`;
       continue;
     }
 
-    html += `<div class="tablewrap"><table class="t">
-      <thead><tr>
-        <th class="num">№</th>
-        <th class="time">Время</th>
-        <th>Группа</th>
-        <th>Дисциплина</th>
-        <th>Тип</th>
-        <th class="room">Аудитория / Платформа</th>
-        <th>ДЗ</th>
-        <th>ID</th>
-        <th>Действия</th>
-      </tr></thead><tbody>`;
+    html += `<div class="cards">`;
 
     for(const it of day.items){
       if(it.break){
-        html += `<tr class="tr-break">
-          <td class="num">${it.order}</td>
-          <td class="time">${it.time||""}</td>
-          <td colspan="7">Перерыв</td>
-        </tr>`;
+        html += `<div class="break">Перерыв</div>`;
         continue;
       }
       const isRemote = !!it.is_remote;
-      const rowCls = rowState(it, day.date) + (isRemote? ' tr-remote':'');
-      const room = isRemote ? (it.remote_platform||"СДО") : (it.room || "—");
-      const actions = `
-        <div class="tbl-actions">
-          <button class="btn-sm" onclick="uiSetHw(${it.id})" title="Домашнее задание">ДЗ</button>
-          <button class="btn-sm" onclick="uiChangeRoom(${it.id})" title="Сменить кабинет">Каб.</button>
-        </div>`;
+      const cls = `${rowState(it, day.date)} ${isRemote? 'card-remote':''}`;
 
-      html += `<tr class="${rowCls}">
-        <td class="num">${it.order}</td>
-        <td class="time">${it.time||""}</td>
-        <td>${it.group||""}</td>
-        <td>${it.discipline||""}</td>
-        <td>${it.lesson_type||""}</td>
-        <td class="room">${room}</td>
-        <td>${it.homework||""}</td>
-        <td>${it.id||""}</td>
-        <td>${actions}</td>
-      </tr>`;
+      html += `<div class="pair-card ${cls}">
+        <div class="pair-num">
+          <b>${it.order ?? ''}</b>
+          <small>${it.time || ''}</small>
+        </div>
+
+        <div class="pair-meta">
+          <div class="row">
+            <strong>${it.group || ''}</strong>
+            ${it.lesson_type ? `<span class="chip">${it.lesson_type}</span>`:''}
+            ${it.homework ? `<span class="chip on" title="${String(it.homework).replace(/"/g,'&quot;')}">ДЗ есть</span>`:`<span class="chip">ДЗ нет</span>`}
+          </div>
+
+          <div class="row">
+            <div><span class="muted">Предмет:</span> <strong>${it.discipline || ''}</strong></div>
+          </div>
+
+          <div class="row">
+            <div><span class="muted">Кабинет/Дистант:</span> <strong>${isRemote ? (it.remote_platform||"СДО") : (it.room || "—")}</strong></div>
+            ${it.building ? `<div><span class="muted">Здание:</span> <strong>${it.building}</strong></div>` : ''}
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn-sm" data-action="hw" data-id="${it.id}" data-hw="${(it.homework||'').replace(/"/g,'&quot;')}">ДЗ</button>
+          <button class="btn-sm" data-action="room" data-id="${it.id}">Каб.</button>
+        </div>
+      </div>`;
     }
 
-    html += `</tbody></table></div></div>`;
+    html += `</div></div>`; // .cards + .day
   }
-  wrap.innerHTML = html || `<div class="holiday">Нет данных за выбранный период</div>`;
+
+  wrap.innerHTML = html || `<div class="break" style="margin:8px;">Нет данных за выбранный период</div>`;
 }
 
-/* ====== API ====== */
+/* ===== API ===== */
 async function loadAll(){
-  const start = document.getElementById('start').value;
-  const end   = document.getElementById('end').value;
+  const st = $('#start').value, en = $('#end').value;
 
   // Статистика
-  const s = await fetch(`/api/teacher/me/stats/?start=${start}&end=${end}`, {credentials:"same-origin"});
-  if(!s.ok){
-    document.getElementById('stats').textContent = "Нет доступа или ошибка";
-  }else{
+  try{
+    const s = await fetch(`/api/teacher/me/stats/?start=${st}&end=${en}`, {credentials:"same-origin"});
+    if(!s.ok) throw 0;
     const stats = await s.json();
-    document.getElementById('stats').innerHTML =
-      `Пары: <b>${stats.total_lessons}</b> • Часы: <b>${stats.total_hours}</b> • Рабочих дней: <b>${stats.working_days}</b>`;
-  }
+    $('#stats').innerHTML = `Пары: <b>${stats.total_lessons}</b> • Часы: <b>${stats.total_hours}</b> • Рабочих дней: <b>${stats.working_days}</b>`;
+  }catch{ $('#stats').textContent = 'Нет доступа или ошибка'; }
 
   // Расписание
-  const r = await fetch(`/api/teacher/me/schedule/?start=${start}&end=${end}`, {credentials:"same-origin"});
-  let data = await r.json();
-  // убедимся, что пришёл массив [{date, items}]
-  if(!Array.isArray(data)) data = [];
-
-  // Заполним фильтр группами
+  let data=[];
+  try{
+    const r = await fetch(`/api/teacher/me/schedule/?start=${st}&end=${en}`, {credentials:"same-origin"});
+    data = await r.json();
+    if(!Array.isArray(data)) data = [];
+  }catch{ data = []; }
   fillGroupFilter(data);
-
   render(data);
 }
 
-/* ====== действия в таблице ====== */
-async function uiSetHw(lessonId){
-  const text = prompt("Текст ДЗ для занятия #"+lessonId+":", "");
-  if(text===null) return;
-  const form = new FormData(); form.append("lesson_id", lessonId); form.append("text", text);
-  const r = await fetch("/api/teacher/homework/set/", {
-    method:"POST", body:form, credentials:"same-origin",
-    headers:{"X-CSRFToken": getCookie("csrftoken")}
-  });
-  alert(await r.text());
-  loadAll();
-}
-async function uiChangeRoom(lessonId){
-  const r = await fetch(`/api/teacher/room/free/?lesson_id=${lessonId}`, {credentials:"same-origin"});
-  if(!r.ok){ return alert(await r.text()); }
-  const data = await r.json();
-  if(!data.length){ return alert("Свободных кабинетов нет"); }
-  const choice = prompt(
-    "Введите room_id из списка:\n" +
-    data.map(x=>`${x.id}: ${x.building} · ${x.name} (мест:${x.capacity}${x.computers?(", ПК:"+x.computers):""})`).join("\n")
-  );
-  if(!choice) return;
-  const form = new FormData(); form.append("lesson_id", lessonId); form.append("room_id", choice);
-  const r2 = await fetch("/api/teacher/room/change/", {
-    method:"POST", body:form, credentials:"same-origin",
-    headers:{"X-CSRFToken": getCookie("csrftoken")}
-  });
-  alert(await r2.text());
-  loadAll();
-}
+/* ====== Modals: HW / Room ====== */
+$('#calendar').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
 
-/* автостарт */
+  if(btn.dataset.action === 'hw'){
+    $('#hwLessonId').value = id;
+    $('#hwText').value = btn.getAttribute('data-hw') || '';
+    modalHw.open();
+    $('#hwText').focus();
+    return;
+  }
+
+  if(btn.dataset.action === 'room'){
+    $('#roomLessonId').value = id;
+    $('#roomApply').disabled = true;
+    $('#roomsWrap').innerHTML = `<div class="muted">Загрузка свободных кабинетов…</div>`;
+    modalRoom.open();
+    try{
+      const r = await fetch(`/api/teacher/room/free/?lesson_id=${id}`, {credentials:"same-origin"});
+      if(!r.ok){ $('#roomsWrap').innerHTML = `<div class="muted">Ошибка загрузки</div>`; return; }
+      const list = await r.json();
+      if(!list.length){ $('#roomsWrap').innerHTML = `<div class="muted">Свободных кабинетов нет</div>`; return; }
+
+      const html = `<div class="rooms">` + list.map(x=>`
+        <label class="room-card">
+          <input type="radio" name="roomPick" value="${x.id}">
+          <div class="room-meta">
+            <strong>${x.title || (x.building+' · '+x.name)}</strong>
+            <small>Мест: ${x.capacity}${x.computers?(", ПК:"+x.computers):""}</small>
+          </div>
+        </label>`).join('') + `</div>`;
+      $('#roomsWrap').innerHTML = html;
+
+      $('#roomsWrap').addEventListener('change', (ev)=>{
+        if(ev.target.name==='roomPick') $('#roomApply').disabled = false;
+      }, {once:true});
+    }catch{
+      $('#roomsWrap').innerHTML = `<div class="muted">Ошибка сети</div>`;
+    }
+  }
+});
+
+/* HW save */
+$('#hwSave').addEventListener('click', async ()=>{
+  const id = $('#hwLessonId').value;
+  const text = $('#hwText').value.trim();
+  const form = new FormData(); form.append('lesson_id', id); form.append('text', text);
+  const r = await fetch('/api/teacher/homework/set/', {
+    method:'POST', body:form, credentials:'same-origin',
+    headers:{'X-CSRFToken': getCookie('csrftoken')}
+  });
+  const msg = await r.text();
+  alert(msg);
+  modalHw.close();
+  loadAll();
+});
+
+/* Room apply */
+$('#roomApply').addEventListener('click', async ()=>{
+  const id = $('#roomLessonId').value;
+  const pick = $('input[name="roomPick"]:checked');
+  if(!pick){ alert('Выберите кабинет'); return; }
+  const form = new FormData(); form.append('lesson_id', id); form.append('room_id', pick.value);
+  const r = await fetch('/api/teacher/room/change/', {
+    method:'POST', body:form, credentials:'same-origin',
+    headers:{'X-CSRFToken': getCookie('csrftoken')}
+  });
+  const msg = await r.text();
+  alert(msg);
+  modalRoom.close();
+  loadAll();
+});
+
+/* Close modals on global Esc when opened */
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape'){
+    if($('#modalHw').classList.contains('show')) modalHw.close();
+    if($('#modalRoom').classList.contains('show')) modalRoom.close();
+  }
+});
+
+/* Boot */
+setDefaultRange();
+$('#btnShow').addEventListener('click', loadAll);
+$('#fltGroup').addEventListener('change', loadAll);
 loadAll();
 </script>
 {% endblock %}

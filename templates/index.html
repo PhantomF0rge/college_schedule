@@ -290,7 +290,21 @@
   .badge.state-upcoming{ border-color:#1976d2; background:var(--soon); }
   .badge.state-past{ border-color:#b0bec5; background:var(--past); }
 
-  .hw{ margin-top:8px; font-size:13px; background:#f9fafb; border:1px dashed var(--line); padding:8px; border-radius:12px; }
+  /* ДЗ: тема-aware фон и текст */
+  .hw{
+    margin-top:8px;
+    font-size:13px;
+    padding:8px;
+    border-radius:12px;
+    background: color-mix(in srgb, var(--card) 92%, transparent); /* работает и в светлой, и в тёмной */
+    border:1px dashed var(--line);
+    color: var(--text);
+  }
+
+  html[data-theme="dark"] .hw{
+    background: color-mix(in srgb, #24262b 88%, transparent); /* визуально в тон карточкам на скрине */
+    border-color: rgba(255,255,255,.14);
+  }
 
   /* BREAK CARD / HOLIDAY */
   .break-card,
@@ -359,6 +373,23 @@
     .badges::-webkit-scrollbar{ display:none; }
 
     .meta{ text-align:left; font-size:12px; }
+  }
+
+  /*Микроанимации*/
+  @media (prefers-reduced-motion: no-preference){
+    .card{ transition: transform .18s ease, box-shadow .18s ease; }
+    .card:hover{ transform: translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.12); }
+    .badge{ transition: background-color .15s ease, border-color .15s ease; }
+  }
+  /*Адаптация под печать*/
+  @media print{
+    header, .sidebar, .chips, .topbar, .hdr .muted{ display:none !important; }
+    .daycard{ box-shadow:none; border:1px solid #000; }
+    .badge, .slot-num{ border-color:#000; }
+  }
+  /*Более четкий текст на темной теме*/
+  html[data-theme="dark"]{
+    --text:#eef1f6; --muted:#aab2bd;
   }
 </style>
 {% endblock %}
@@ -438,7 +469,7 @@ const $ = s=>document.querySelector(s);
 const $$ = s=>Array.from(document.querySelectorAll(s));
 function fmtDate(d){ return d.toISOString().slice(0,10); }
 function mondayOf(date){ const d=new Date(date); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d; }
-function weekRangeAround(date){ const s=mondayOf(date); const e=new Date(s); e.setDate(s.getDate()+6); return {start:fmtDate(s), end:fmtDate(e)}; }
+function weekRangeAround(date){ const s=mondayOf(date); const e=new Date(s); e.setDate(s.getDate()+5); return {start:fmtDate(s), end:fmtDate(e)}; }
 function debounce(fn,ms=220){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 
 // Текущая дата/время в калининградской зоне

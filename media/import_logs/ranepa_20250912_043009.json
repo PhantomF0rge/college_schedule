@@ -1,0 +1,179 @@
+{
+  "params": {
+    "start": "2025-09-08",
+    "end": "2025-09-13",
+    "kind": "group",
+    "q": ""
+  },
+  "report": {
+    "created": 68,
+    "updated": 1473,
+    "skipped": 0,
+    "errors": 10,
+    "reasons": {
+      "ValidationError": 10
+    },
+    "samples": [
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-11",
+          "order": 3,
+          "time": null,
+          "discipline": "Мерчандайзинг и основы маркетинга",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Муромцев А.Б./Карепанова Д.И.",
+          "group": "24ТДк1-о9",
+          "room": "1018",
+          "building": "Высшее Образование",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 1,
+          "time": null,
+          "discipline": "Математика",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Малевская А.А.",
+          "group": "25ТДт3-о9",
+          "room": "3",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 3,
+          "time": null,
+          "discipline": "Основы финансовой грамотности",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Грибкова Ж.Б.",
+          "group": "24ТГг3-о9",
+          "room": "3",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 3,
+          "time": null,
+          "discipline": "Математика",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Коллегова Л.В.",
+          "group": "25ЮР1-о9",
+          "room": "24",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 3,
+          "time": null,
+          "discipline": "Математика",
+          "lesson_type": "Лекция",
+          "teacher": "Малевская А.А.",
+          "group": "25ТДк2-о9",
+          "room": "38",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 3,
+          "time": null,
+          "discipline": "Математика",
+          "lesson_type": "Лекция",
+          "teacher": "Горская Н.В.",
+          "group": "25БД2-о9",
+          "room": "23",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 3,
+          "time": null,
+          "discipline": "История",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Смирнова В.В.",
+          "group": "25ТДк1-о9",
+          "room": "42",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 4,
+          "time": null,
+          "discipline": "Литература",
+          "lesson_type": "Лекция",
+          "teacher": "Литвинова Е.И.",
+          "group": "25БД2-о9",
+          "room": "15",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 4,
+          "time": null,
+          "discipline": "Иностранный язык в профессиональной деятельности",
+          "lesson_type": "Практическое занятие",
+          "teacher": "Ефимова И.А.",
+          "group": "24БД3-о11",
+          "room": "14",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      },
+      {
+        "reason": "ValidationError",
+        "item": {
+          "date": "2025-09-12",
+          "order": 4,
+          "time": null,
+          "discipline": "Математика",
+          "lesson_type": "Лекция",
+          "teacher": "Мирончук Н.П.",
+          "group": "25ПК2-о9",
+          "room": "58",
+          "building": "Колледж",
+          "is_remote": false,
+          "remote_platform": null
+        }
+      }
+    ]
+  }
+}

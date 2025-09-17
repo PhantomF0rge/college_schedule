@@ -27,6 +27,10 @@ class Lesson(models.Model):
     room = models.ForeignKey(Room, on_delete=models.PROTECT, null=True, blank=True)  # может быть дистанционка
     is_remote = models.BooleanField(default=False)  # СДО / дистанционно
     remote_platform = models.CharField(max_length=120, blank=True)  # СДО ссылка/название
+    is_stream = models.BooleanField(
+        default=False,
+        help_text="Потоковая лекция (одно занятие для нескольких групп одновременно)"
+    )
 
     class Meta:
         ordering = ["date", "timeslot__order"]
@@ -43,38 +47,49 @@ class Lesson(models.Model):
         return "past" if now > end else "upcoming"
 
     def clean(self):
-        # уже есть unique_together по (date, timeslot, group)
-        if not self.is_remote and not self.room:
-            raise ValidationError("Для очной пары нужно указать кабинет.")
-
-        # Занятость аудитории
-        if self.room and not self.is_remote:
-            clash_room = Lesson.objects.filter(
-                date=self.date, timeslot=self.timeslot, room=self.room
-            ).exclude(pk=self.pk).exists()
-            if clash_room:
-                raise ValidationError(f"Кабинет {self.room} уже занят в этот слот.")
-
-            # вместимость и компьютеры
-            if self.group and self.group.size:
-                if self.room.capacity and self.group.size > self.room.capacity:
-                    raise ValidationError(
-                        f"Группа ({self.group.size}) не помещается в кабинет (вместимость {self.room.capacity})."
-                    )
-                if self.room.computers and self.group.size > self.room.computers:
-                    raise ValidationError(
-                        f"Недостаточно компьютеров: нужно {self.group.size}, есть {self.room.computers}."
-                    )
-
-        # Занятость преподавателя
-        if self.teacher:
-            clash_teacher = Lesson.objects.filter(
-                date=self.date, timeslot=self.timeslot, teacher=self.teacher
-            ).exclude(pk=self.pk).exists()
-            if clash_teacher:
-                raise ValidationError(f"Преподаватель {self.teacher} уже занят в этот слот.")
-
         super().clean()
+        # Ищем все занятия в тот же день и слот
+        qs = Lesson.objects.filter(date=self.date, timeslot=self.timeslot).exclude(pk=self.pk)
+
+        # ---- Teacher conflicts ----
+        if self.teacher_id:
+            clashes = qs.filter(teacher_id=self.teacher_id)
+
+            # Разрешаем «одновременность», если это один и тот же поток:
+            #  - текущий и все конфликты помечены is_stream=True
+            #  - совпадают дисциплина/тип/формат (очно/СДО) и платформа
+            if self.is_stream:
+                bad = clashes.exclude(
+                    is_stream=True,
+                    discipline_id=self.discipline_id,
+                    lesson_type_id=self.lesson_type_id,
+                    is_remote=self.is_remote,
+                    remote_platform=self.remote_platform,
+                )
+                if bad.exists():
+                    raise ValidationError({"teacher": "Конфликт у преподавателя вне потока"})
+            else:
+                if clashes.exists():
+                    raise ValidationError({"teacher": "Преподаватель уже занят в этот слот"})
+
+        # ---- Room conflicts ----
+        # Для потоков разрешаем делить одну аудиторию несколькими группами,
+        # если это один и тот же «поток» (см. критерии выше)
+        if self.room_id:
+            r_clashes = qs.filter(room_id=self.room_id)
+            if self.is_stream:
+                bad = r_clashes.exclude(
+                    is_stream=True,
+                    discipline_id=self.discipline_id,
+                    lesson_type_id=self.lesson_type_id,
+                    is_remote=self.is_remote,
+                    remote_platform=self.remote_platform,
+                )
+                if bad.exists():
+                    raise ValidationError({"room": "Конфликт аудитории вне потока"})
+            else:
+                if r_clashes.exists():
+                    raise ValidationError({"room": "Аудитория занята"})
 
     def save(self, *args, **kwargs):
         self.full_clean()  # чтобы проверки сработали из админки/скриптов

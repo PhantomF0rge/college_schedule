@@ -27,8 +27,30 @@ import json, re
 from django.db import IntegrityError
 from pathlib import Path
 from django.forms.models import model_to_dict
+from django.db.models import Count
+from django.utils.dateparse import parse_date
+from django.core.exceptions import ValidationError
 
 COOKIE_NAME = "preferred_group"
+
+SPORTS_PREFIXES = ("физическая культура", "физкультура")
+
+# >>> ADD: helpers (case-insensitive get_or_create + очистка дисциплины)
+_LEADING_BR = re.compile(r'^(?:\s*(?:<br\s*/?>|\r?\n)+\s*)+', re.I)
+
+def strip_leading_breaks(s: str | None) -> str:
+    return _LEADING_BR.sub('', (s or '')).strip()
+
+def get_or_create_ci(model, field: str, value: str | None, defaults: dict | None = None):
+    """Case-insensitive get_or_create без дубликатов по регистру."""
+    if not value:
+        return None
+    val = value.strip()
+    defaults = defaults or {}
+    obj = model.objects.filter(**{f"{field}__iexact": val}).first()
+    if obj:
+        return obj
+    return model.objects.create(**{field: val}, **defaults)
 
 def _is_admin(user):
     return user.is_staff or user.is_superuser or user.groups.filter(name="Admin").exists()
@@ -319,9 +341,9 @@ def teacher_set_homework(request):
         return HttpResponseBadRequest("Только для преподавателей.")
     lesson_id = request.POST.get("lesson_id")
     text = (request.POST.get("text") or "").strip()
-    if not lesson_id or not text:
-        return HttpResponseBadRequest("Нужно lesson_id и text.")
-    # урок должен принадлежать текущему преподавателю
+    if not lesson_id:
+        return HttpResponseBadRequest("Нужно lesson_id.")
+
     t = _get_teacher_for_user(request.user)
     if not t:
         return HttpResponseBadRequest("Не найден профиль преподавателя для пользователя.")
@@ -329,7 +351,13 @@ def teacher_set_homework(request):
         lesson = Lesson.objects.select_related("teacher").get(pk=lesson_id, teacher=t)
     except Lesson.DoesNotExist:
         return HttpResponseBadRequest("Пара не найдена или не ваша.")
-    # создаём/обновляем ДЗ
+
+    # ПУСТОЙ текст = удалить ДЗ
+    if text == "":
+        HomeworkItem.objects.filter(lesson=lesson).delete()
+        return JsonResponse({"ok": True, "lesson_id": lesson.id, "homework": None, "deleted": True})
+
+    # иначе — создать/обновить
     obj, _ = HomeworkItem.objects.update_or_create(lesson=lesson, defaults={"text": text})
     return JsonResponse({"ok": True, "lesson_id": lesson.id, "homework": obj.text})
 
@@ -1455,17 +1483,48 @@ def ranepa_import(request):
     try:
         payload = json.loads(request.body or "{}")
         items       = payload.get("items") or []
-        import_meta = payload.get("meta")  or {}   # можно передавать start/end/sem и т.п.
+        import_meta = payload.get("meta")  or {}
+
+        # NEW: глобальный флаг «обойти ошибки валидации» (галочка bypass errors)
+        #   meta.bypass_errors / meta.bypass_validation / meta.force — любые из них
+        #   + на всякий случай поддержим ?bypass=1 в query (если дергают ручку руками)
+        bypass_all = bool(
+            import_meta.get("bypass_errors")
+            or import_meta.get("bypass_validation")
+            or import_meta.get("force")
+            or (request.GET.get("bypass") in ("1", "true", "True", "yes"))
+        )
     except Exception:
         return HttpResponseBadRequest("bad json")
 
     report = {"created":0,"updated":0,"skipped":0,"errors":0,"reasons":{}, "samples":[]}
-    def bump(reason):
-        report["reasons"][reason] = report["reasons"].get(reason,0)+1
+    # Сообщения вида «Преподаватель уже занят», «Аудитория занята», «занят в этот слот» считаем мягкими конфликтами
+    def _is_soft_conflict_validation(e: ValidationError) -> bool:
+        msgs = []
+        if hasattr(e, "message_dict") and isinstance(e.message_dict, dict):
+            for v in e.message_dict.values():
+                if isinstance(v, (list, tuple)):
+                    msgs.extend(v)
+                else:
+                    msgs.append(str(v))
+        else:
+            msgs.extend(getattr(e, "messages", []) or [])
+        txt = " ".join(msgs).lower()
+        keys = (
+            "преподаватель уже занят",
+            "аудитория занята",
+            "группа уже занята",
+            "занят в этот слот",
+        )
+        return any(k in txt for k in keys)
+
+    def bump(reason): report["reasons"][reason] = report["reasons"].get(reason,0)+1
+
+    to_bulk_insert = []  # bypass-вставки (потоки и физра по аудитории)
 
     for raw in items:
         try:
-            # дата
+            # ----- дата / слот -----
             try:
                 date = datetime.fromisoformat(raw.get("date")).date()
             except Exception:
@@ -1473,7 +1532,6 @@ def ranepa_import(request):
                 if len(report["samples"])<12: report["samples"].append({"reason":"BAD_DATE","item":raw})
                 continue
 
-            # номер пары
             order = _safe_order(raw.get("order"))
             if not order:
                 report["skipped"] += 1; bump("NO_ORDER")
@@ -1486,58 +1544,74 @@ def ranepa_import(request):
                 if len(report["samples"])<12: report["samples"].append({"reason":"NO_TIMESLOT","item":raw})
                 continue
 
-            # группы: допускаем несколько
-            groups_raw = re.split(r"[,\s]+", _norm(raw.get("group")))
+            # ----- группы (может быть поток) -----
+            groups_raw = re.split(r",\s*|;\s*", _norm(raw.get("group")))
             groups_raw = [g for g in groups_raw if g]
             if not groups_raw:
                 report["skipped"] += 1; bump("NO_GROUP")
                 if len(report["samples"])<12: report["samples"].append({"reason":"NO_GROUP","item":raw})
                 continue
 
-            # дисциплина + «поток»
-            disc_base  = _norm(raw.get("discipline")) or "Без названия"
-            if len(groups_raw) > 1:
-                disc_title = f"{disc_base} (Поток {'/'.join(groups_raw)})"
-            else:
-                disc_title = disc_base
-            discipline, _ = Discipline.objects.get_or_create(title=disc_title)
+            # ----- справочники без дублей (CI) -----
+            disc_title = strip_leading_breaks(_norm(raw.get("discipline"))) or "Без названия"
+            discipline = get_or_create_ci(Discipline, "title", disc_title)
 
-            # преподаватель / тип
             teacher = None
-            teacher_name = _norm(raw.get("teacher"))
-            if teacher_name:
-                teacher, _ = Teacher.objects.get_or_create(full_name=teacher_name)
+            t_name  = _norm(raw.get("teacher"))
+            if t_name:
+                teacher = get_or_create_ci(Teacher, "full_name", t_name)
 
             lesson_type = None
             lt_name = _norm(raw.get("lesson_type"))
             if lt_name:
-                lesson_type, _ = LessonType.objects.get_or_create(name=lt_name)
+                lesson_type = get_or_create_ci(LessonType, "name", lt_name)
 
-            # аудитория / корпус
+            # ----- флаги -----
+            is_stream = ("поток" in (lt_name or "").lower()) or (len(groups_raw) > 1)
             is_remote = bool(raw.get("is_remote"))
+            is_sports = (disc_title.strip().lower().startswith(SPORTS_PREFIXES))
+
+            # ----- аудитория / корпус -----
             room_obj = None
-            remote_pl = None
-            if is_remote:
-                remote_pl = _norm(raw.get("remote_platform"))
+            remote_pl = _norm(raw.get("remote_platform")) if is_remote else ""
             if not is_remote:
                 room_name = _norm(raw.get("room"))
                 bname = _norm(raw.get("building")) or _derive_building_name(room_name)
-                building = None
-                if bname:
-                    building, _ = Building.objects.get_or_create(name=bname)
+                building = get_or_create_ci(Building, "name", bname) if bname else None
                 if not building:
-                    building, _ = Building.objects.get_or_create(name="Не указан")
+                    building = get_or_create_ci(Building, "name", "Не указан")
                 if room_name:
-                    room_obj, _ = Room.objects.get_or_create(
-                        name=room_name, building=building,
-                        defaults={"capacity": 30}
-                    )
+                    room_obj = Room.objects.filter(name__iexact=room_name, building=building).first()
+                    if not room_obj:
+                        # capacity=0, computers=0 — чтобы не падать на "вместимость < размер группы"
+                        room_obj = Room.objects.create(
+                            name=room_name,
+                            building=building,
+                            capacity=0,
+                            computers=0,
+                        )
+                    else:
+                        # (опционально) если известен размер группы и он больше заявленной вместимости — поднимем её
+                        try:
+                            # вычислим max размер среди всех групп этого «пакета»
+                            sizes = []
+                            for code in groups_raw:
+                                g = StudentGroup.objects.filter(code__iexact=code.strip()).first()
+                                if g and (g.size or 0) > 0:
+                                    sizes.append(g.size)
+                            need = max(sizes) if sizes else 0
+                            if need and room_obj.capacity and room_obj.capacity < need:
+                                room_obj.capacity = need
+                                room_obj.save(update_fields=["capacity"])
+                        except Exception:
+                            pass
 
-            # создаём/обновляем для каждой группы
+            # ====== СОХРАНЕНИЕ (bypass для потоков и физры по аудитории) ======
             for code in groups_raw:
                 code = code.strip()
                 if not code:
                     report["skipped"] += 1; bump("EMPTY_GROUP_TOKEN"); continue
+
                 group, _ = StudentGroup.objects.get_or_create(code=code, defaults={"size": 0})
 
                 values = dict(
@@ -1546,28 +1620,78 @@ def ranepa_import(request):
                     lesson_type=lesson_type,
                     room=room_obj,
                     is_remote=is_remote,
-                    remote_platform=remote_pl or ""
+                    remote_platform=remote_pl or "",
+                    is_stream=is_stream,
                 )
-                try:
-                    with transaction.atomic():
-                        obj = Lesson.objects.select_for_update().filter(date=date, timeslot=ts, group=group).first()
-                        if obj:
-                            for k,v in values.items(): setattr(obj,k,v)
-                            obj.save(); report["updated"] += 1
-                        else:
-                            Lesson.objects.create(group=group, date=date, timeslot=ts, **values)
-                            report["created"] += 1
-                except IntegrityError:
-                    report["errors"] += 1; bump("DB_INTEGRITY")
-                    if len(report["samples"])<12:
-                        report["samples"].append({"reason":"DB_INTEGRITY","item":{**raw,"group":code}})
+
+                # Разрешённый обход модельной валидации:
+                #  - поток (is_stream=True)
+                #  - физкультура очно (не удалённо): аудитория «может совпадать», пропускаем конфликт по комнате
+                allow_bypass = is_stream or (is_sports and not is_remote)
+
+                existing = Lesson.objects.filter(date=date, timeslot=ts, group=group).first()
+                if existing:
+                    if allow_bypass:
+                        # update() обходит save()/clean() → не сработают «жёсткие» валидаторы
+                        Lesson.objects.filter(pk=existing.pk).update(**values)
+                        report["updated"] += 1
+                    else:
+                        try:
+                            with transaction.atomic():
+                                for k, v in values.items():
+                                    setattr(existing, k, v)
+                                existing.save()
+                                report["updated"] += 1
+                        except ValidationError as e:
+                            report["errors"] += 1; bump("ValidationError")
+                            if len(report["samples"]) < 12:
+                                report["samples"].append({
+                                    "reason": "ValidationError",
+                                    "item": {**raw, "group": code},
+                                    "messages": e.message_dict if hasattr(e, "message_dict") else e.messages
+                                })
+                        except IntegrityError:
+                            report["errors"] += 1; bump("DB_INTEGRITY")
+                            if len(report["samples"]) < 12:
+                                report["samples"].append({
+                                    "reason": "DB_INTEGRITY",
+                                    "item": {**raw, "group": code}
+                                })
+                else:
+                    if allow_bypass:
+                        to_bulk_insert.append(Lesson(group=group, date=date, timeslot=ts, **values))
+                    else:
+                        try:
+                            with transaction.atomic():
+                                Lesson.objects.create(group=group, date=date, timeslot=ts, **values)
+                                report["created"] += 1
+                        except ValidationError as e:
+                            report["errors"] += 1; bump("ValidationError")
+                            if len(report["samples"]) < 12:
+                                report["samples"].append({
+                                    "reason": "ValidationError",
+                                    "item": {**raw, "group": code},
+                                    "messages": e.message_dict if hasattr(e, "message_dict") else e.messages
+                                })
+                        except IntegrityError:
+                            report["errors"] += 1; bump("DB_INTEGRITY")
+                            if len(report["samples"]) < 12:
+                                report["samples"].append({
+                                    "reason": "DB_INTEGRITY",
+                                    "item": {**raw, "group": code}
+                                })
 
         except Exception as e:
             report["errors"] += 1; bump(type(e).__name__)
             if len(report["samples"])<12:
                 report["samples"].append({"reason":type(e).__name__,"item":raw})
 
-    # ===== сохранить лог и запись журнала =====
+    # дозаливаем bypass-пакет
+    if to_bulk_insert:
+        Lesson.objects.bulk_create(to_bulk_insert, batch_size=500)
+        report["created"] += len(to_bulk_insert)
+
+    # ===== лог и запись ImportJob =====
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir  = Path(settings.MEDIA_ROOT) / "import_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -1591,3 +1715,233 @@ def ranepa_import(request):
     )
 
     return JsonResponse({"ok": True, "job_id": job.id, "totals": report, "log_url": log_url})
+
+def get_ci(model, field: str, name: str):
+    if not name: return None
+    key = (model.__name__, canon(name))
+    cache = {"Teacher":t_cache,"Group":g_cache,"Discipline":d_cache,"LessonType":lt_cache}[model.__name__]
+    if key in cache: return cache[key]
+    obj = model.objects.filter(**{f"{field}__iexact": name.strip()}).first()
+    if not obj:
+        obj = model.objects.create(**{field: name.strip()})
+    cache[key] = obj
+    return obj
+
+@transaction.atomic
+def import_items(items, meta):
+    created=updated=skipped=errors=0
+    log=[]
+    for it in items:
+        try:
+            # нормализуем названия
+            disc = strip_leading_breaks(it.get("discipline"))   # из services.ranepa или продублируй функцию здесь
+            group = it.get("group")
+            teacher = it.get("teacher")
+            ltype = it.get("lesson_type")
+
+            # достаём/создаём справочники без дублей
+            D = get_ci(Discipline, "name", disc) if disc else None
+            G = get_ci(Group, "code", group) if group else None
+            T = get_ci(Teacher, "name", teacher) if teacher else None
+            LT= get_ci(LessonType, "name", ltype) if ltype else None
+
+            # ключ урока — дата+пара+группа (или препод), чтобы обновлять, а не плодить
+            uniq = {
+                "date": it["date"],
+                "order": it.get("order"),
+                "group": G,
+            }
+            lesson, is_created = Lesson.objects.update_or_create(
+                **uniq,
+                defaults={
+                    "discipline": D,
+                    "teacher": T,
+                    "lesson_type": LT,
+                    "room": None if it.get("is_remote") else (it.get("room") or ""),
+                    "is_remote": bool(it.get("is_remote")),
+                    "remote_platform": it.get("remote_platform") or "",
+                }
+            )
+            created += int(is_created)
+            updated += int(not is_created)
+        except Exception as e:
+            errors += 1
+            log.append(str(e))
+    return {"created":created,"updated":updated,"skipped":skipped,"errors":errors,"log":log}
+
+# === helpers for "legal stream" buckets (teacher/room) ===
+def _stream_flag(row: dict) -> bool:
+    """True, если отмечено is_stream или тип пары содержит 'поток' (регистронезависимо)."""
+    lt = (row.get("lesson_type__name") or "").lower()
+    return bool(row.get("is_stream")) or ("поток" in lt)
+
+def _same(vals) -> bool:
+    it = iter(vals)
+    try:
+        first = next(it)
+    except StopIteration:
+        return True
+    return all(v == first for v in it)
+
+def _is_legal_stream_teacher(lessons: list[dict]) -> bool:
+    """
+    Набор занятий для одного преподавателя в один слот считаем 'легальным потоком',
+    если:
+      - все помечены как поток (_stream_flag=True)
+      - одинаковые discipline, lesson_type, is_remote, remote_platform
+      - если очно, то у всех одинаковая аудитория (чтобы не получить «один препод в двух аудиториях»)
+    """
+    if not lessons or not all(_stream_flag(l) for l in lessons):
+        return False
+
+    if not _same(l.get("discipline_id") for l in lessons):
+        return False
+
+    # Тип пары: по id, а если пусто — по названию
+    lt_ids   = [l.get("lesson_type_id") for l in lessons]
+    lt_names = [(l.get("lesson_type__name") or "").strip().lower() for l in lessons]
+    if not _same(lt_ids):
+        # допускаем None, если все названия совпадают
+        if not (_same(lt_names) and all(bool(n) for n in lt_names)):
+            return False
+
+    if not _same(l.get("is_remote") for l in lessons):
+        return False
+
+    if not lessons[0]["is_remote"]:
+        # оффлайн-поток — одна аудитория
+        if not _same(l.get("room_id") for l in lessons):
+            return False
+    else:
+        # онлайн — одна и та же платформа/ссылка (или все пусто)
+        if not _same((l.get("remote_platform") or "").strip().lower() for l in lessons):
+            return False
+
+    return True
+
+def _is_legal_stream_room(lessons: list[dict]) -> bool:
+    """
+    Набор занятий в одной аудитории в один слот считаем 'легальным потоком',
+    если:
+      - все помечены как поток (_stream_flag=True)
+      - один и тот же преподаватель
+      - одинаковые discipline, lesson_type
+    """
+    if not lessons or not all(_stream_flag(l) for l in lessons):
+        return False
+    if not _same(l.get("teacher_id") for l in lessons):
+        return False
+    if not _same(l.get("discipline_id") for l in lessons):
+        return False
+
+    lt_ids   = [l.get("lesson_type_id") for l in lessons]
+    lt_names = [(l.get("lesson_type__name") or "").strip().lower() for l in lessons]
+    if not _same(lt_ids):
+        if not (_same(lt_names) and all(bool(n) for n in lt_names)):
+            return False
+
+    return True
+
+def _is_sports_title(title: str|None) -> bool:
+    t = (title or "").strip().lower()
+    return t.startswith(SPORTS_PREFIXES)
+
+@login_required
+@user_passes_test(_is_admin)
+@require_GET
+def ranepa_conflicts(request):
+    start = parse_date(request.GET.get("start") or "")
+    end   = parse_date(request.GET.get("end") or "")
+    if not (start and end):
+        return HttpResponseBadRequest("start,end required")
+
+    qs = Lesson.objects.select_related("group","teacher","room","timeslot")\
+        .filter(date__gte=start, date__lte=end)
+
+    out = {"teacher":[], "room":[], "group":[]}
+
+    # === 1) Преподаватель на нескольких парах одновременно ===
+    dup_teachers = (qs.filter(teacher__isnull=False)
+                      .values("date","timeslot_id","teacher__id","teacher__full_name")
+                      .annotate(n=Count("id")).filter(n__gt=1))
+    for row in dup_teachers:
+        # Подтягиваем подробности набора в этот слот
+        lessons = list(
+            Lesson.objects.filter(
+                date=row["date"], timeslot_id=row["timeslot_id"], teacher_id=row["teacher__id"]
+            ).values(
+                "id",
+                "group__code",
+                "room_id", "room__name",
+                "is_remote", "remote_platform",
+                "discipline_id",
+                "lesson_type_id", "lesson_type__name",
+                "teacher_id"
+            )
+        )
+
+        # Поток? — тогда не показываем это как конфликт
+        if _is_legal_stream_teacher(lessons):
+            continue
+
+        out["teacher"].append({
+            "date": row["date"].isoformat(),
+            "slot": row["timeslot_id"],
+            "teacher": row["teacher__full_name"],
+            "lessons": [
+                {k:v for k,v in l.items() if k in ("id","group__code","room__name","is_remote")}
+                for l in lessons
+            ],
+            "reason": "Преподаватель назначен на несколько пар в один слот"
+        })
+
+    # === 2) Аудитория занята несколькими группами ===
+    dup_rooms = (qs.filter(room__isnull=False)
+                   .values("date","timeslot_id","room__id","room__name","room__building__name")
+                   .annotate(n=Count("id")).filter(n__gt=1))
+    for row in dup_rooms:
+        lessons = list(
+            Lesson.objects.filter(
+                date=row["date"], timeslot_id=row["timeslot_id"], room_id=row["room__id"]
+            ).values(
+                "id",
+                "group__code",
+                "teacher_id","teacher__full_name",
+                "discipline_id",
+                "lesson_type_id","lesson_type__name",
+                "is_stream"
+            )
+        )
+
+        if _is_legal_stream_room(lessons):
+            continue
+
+        out["room"].append({
+            "date": row["date"].isoformat(),
+            "slot": row["timeslot_id"],
+            "room": row["room__name"],
+            "building": row["room__building__name"],
+            "lessons": [
+                {k:v for k,v in l.items() if k in ("id","group__code","teacher__full_name")}
+                for l in lessons
+            ],
+            "reason": "Аудитория занята несколькими парами"
+        })
+
+    # === 3) На одну группу больше одной пары (потоки не влияют) ===
+    for row in (qs.values("date","timeslot_id","group__id","group__code")
+                  .annotate(n=Count("id")).filter(n__gt=1)):
+        lessons = list(
+          Lesson.objects.filter(
+              date=row["date"], timeslot_id=row["timeslot_id"], group_id=row["group__id"]
+          ).values("id","discipline__title","teacher__full_name")
+        )
+        out["group"].append({
+          "date": row["date"].isoformat(),
+          "slot": row["timeslot_id"],
+          "group": row["group__code"],
+          "lessons": lessons,
+          "reason": "На группу назначено >1 пары в один слот"
+        })
+
+    return JsonResponse(out, safe=False)

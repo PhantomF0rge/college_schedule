@@ -5,7 +5,6 @@
   <meta charset="utf-8">
   <title>{% block title %}Колледж — Расписание{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <style>
     /* ===================== TOKENS / THEMES ===================== */
     :root{
@@ -128,7 +127,7 @@
 
     /* компактнее на телефонах */
     @media (max-width:640px){
-      .logo{ height:28px; }
+      .logo{ height:40px; }
     }
 
     /* ===================== Buttons (unified look) ===================== */
@@ -214,6 +213,17 @@
     .tag.tag-cab{ gap:8px; }
     .tag.tag-cab .ic{ width:16px; height:16px; display:block; }
     .tag.tag-cab .txt{ display:inline; }
+
+    /* ===== Admin chip (как «Преподаватель») ===== */
+    .tag.tag-admin{ gap:8px; border-color: color-mix(in srgb, var(--accent) 30%, var(--bd)); }
+    .tag.tag-admin .ic{ width:16px; height:16px; display:block; }
+    .tag.tag-admin .txt{ display:inline; }
+
+    @media (max-width:640px){
+      .tag.tag-admin{ padding:6px; }
+      .tag.tag-admin .txt{ display:none; }
+      .tag.tag-admin .ic{ width:20px; height:20px; }
+    }
 
     @media (max-width:640px){
       header .wrap{ padding:8px 12px; }     /* хедер уже */
@@ -332,12 +342,25 @@
     <!-- Правый блок действий -->
     <div class="nav-actions" style="display:flex; gap:8px; align-items:center;">
       {% if user.is_authenticated %}
+
+        {# Показываем ссылку в админку только сотрудникам/суперпользователям #}
+        {% if user.is_staff or user.is_superuser %}
+          <a href="{% url 'admin:index' %}" class="tag tag-admin" title="Админ-панель" aria-label="Админ-панель">
+            <!-- иконка «щит/шестерёнка» -->
+            <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 1l7 4v5c0 5-3.8 9.7-7 11-3.2-1.3-7-6-7-11V5l7-4zm0 3.1L7 6.2v3.6c0 3.8 2.8 7.7 5 9 2.2-1.3 5-5.2 5-9V6.2l-5-2.1zM12 8a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z"/>
+            </svg>
+            <span class="txt">Админ</span>
+          </a>
+        {% endif %}
+
         <a href="/teacher/" class="tag tag-cab" title="Личный кабинет" aria-label="Личный кабинет (Преподаватель)">
           <svg class="ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.418 0-8 2.239-8 5v1h16v-1c0-2.761-3.582-5-8-5z"/>
           </svg>
           <span class="txt">Преподаватель</span>
         </a>
+
         <form action="{% url 'logout' %}" method="post" style="display:inline;">
           {% csrf_token %}
           <button type="submit" class="btn btn-ghost" title="Выйти">Выйти</button>

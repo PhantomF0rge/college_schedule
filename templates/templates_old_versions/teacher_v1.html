@@ -1,0 +1,781 @@
+{% extends "base.html" %}
+{% block title %}Преподаватель — Неделя{% endblock %}
+
+{% block head %}
+<style>
+  :root{
+    --accent:#cb1746;
+
+    /* мягкие оттенки — зависят от базовых токенов из base.html */
+    --tbl-head: color-mix(in srgb, var(--card) 86%, #000);
+    --tbl-line: var(--bd);
+    --aura: color-mix(in srgb, var(--accent) 10%, transparent);
+
+    --row-ongo: color-mix(in srgb, #22c55e 12%, transparent);
+    --row-up:   color-mix(in srgb, #60a5fa 12%, transparent);
+    --row-past: color-mix(in srgb, #6b7280 10%, transparent);
+    --row-remote: color-mix(in srgb, var(--accent) 12%, transparent);
+
+    --chip-bg: color-mix(in srgb, var(--card) 92%, transparent);
+    --chip-bd: color-mix(in srgb, var(--bd) 85%, var(--accent) 0%);
+    --chip-on: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  /* ===== Контейнеры / панель фильтров ===== */
+  .t-wrap{ display:grid; gap:12px; }
+  .bar{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:end;
+    background: var(--glass); border:1px solid var(--glass-bd); border-radius:14px; padding:12px;
+    box-shadow: 0 10px 26px rgba(0,0,0,.06), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
+  }
+  .bar .field{ display:flex; flex-direction:column; gap:6px; }
+  .bar label{ font-size:12px; color:var(--muted); }
+  .bar input[type="date"], .bar select{
+    padding:10px 12px; border-radius:12px; border:1px solid var(--bd); background:var(--card); color:var(--text);
+    min-width: 180px; box-shadow: 0 1px 0 rgba(255,255,255,.15) inset;
+  }
+  .bar button{
+    padding:10px 14px; border-radius:12px; border:1px solid color-mix(in srgb, var(--accent) 56%, var(--bd));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--card)), var(--card));
+    color: var(--text); font-weight:700; cursor:pointer;
+    box-shadow: 0 1px 0 rgba(255,255,255,.22) inset;
+  }
+  .stat{
+    padding:10px 12px; border-radius:12px; border:1px solid var(--glass-bd);
+    background: var(--glass); color:var(--text);
+  }
+
+  /* ===== День / таблица ===== */
+  .day{
+    border:1px solid var(--bd); border-radius:16px; overflow:hidden; background:var(--card);
+    box-shadow: 0 8px 24px rgba(0,0,0,.06), 0 0 0 1px color-mix(in srgb, var(--accent) 7%, transparent) inset;
+  }
+  .day-h{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:12px 14px; background: var(--aura);
+    border-bottom:1px solid var(--bd);
+  }
+  .day-h strong{ font-size:16px; }
+  .day-h .muted{ color:var(--muted); }
+
+  .tablewrap{ overflow:auto; }
+  table.t{ width:100%; border-collapse:separate; border-spacing:0; background:var(--card); }
+  .t th, .t td{
+    padding:10px 12px; border-bottom:1px solid var(--tbl-line); text-align:left; white-space:nowrap; color:var(--text);
+  }
+  .t th{
+    position:sticky; top:0; background:var(--tbl-head); color:var(--text); font-weight:800; z-index:1;
+    backdrop-filter:saturate(140%) blur(4px);
+  }
+  .t tr:last-child td{ border-bottom:0; }
+  .tablewrap{
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;          /* свайпим ТОЛЬКО по X внутри контейнера */
+  }
+
+  .num{ width:58px; text-align:center; }
+  .time{ width:110px; font-variant-numeric: tabular-nums; color:var(--muted); }
+  .room{ width:220px; }
+
+  /* Состояния строк */
+  .tr-remote{ background: var(--row-remote); }
+  .tr-ongo{ background: var(--row-ongo); }
+  .tr-past{ background: var(--row-past); }
+  .tr-up{ background: var(--row-up); }
+  .tr-break td{
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    border-top: 1px dashed var(--tbl-line);
+    border-bottom: 1px dashed var(--tbl-line);
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Пилюли/кнопки в таблице */
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 10px;
+    border:1px solid var(--chip-bd); background: var(--chip-bg); border-radius:999px; font-size:12px;
+  }
+  .chip.on{ background: var(--chip-on); border-color: color-mix(in srgb, var(--accent) 40%, var(--bd)); }
+
+  .tbl-actions{ display:flex; gap:8px; }
+  .btn-sm{
+    padding:6px 10px; border-radius:10px; border:1px solid var(--bd);
+    background:var(--card); color:var(--text); cursor:pointer; font-weight:600;
+    transition:box-shadow .2s ease, transform .05s ease;
+  }
+  .btn-sm:hover{ box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  .btn-sm:active{ transform:translateY(1px); }
+
+  .holiday{
+    padding:16px; text-align:center; color:var(--muted);
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+  }
+
+  /* ===== Модальные окна (Liquid Glass) ===== */
+  .modal{
+    position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:1000;
+  }
+  .modal.show{ display:flex; }
+  .modal::before{
+    content:""; position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(2px);
+  }
+  .modal-card{
+    position:relative; width:min(720px, 92vw); background:var(--glass); border:1px solid var(--glass-bd);
+    border-radius:16px; padding:16px;
+    box-shadow: 0 16px 42px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
+  }
+  .modal-h{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .modal-h h3{ margin:0; font-size:18px; }
+  .modal-body{ display:grid; gap:10px; }
+  .modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
+
+  .input, .textarea, .select{
+    width:100%; padding:10px 12px; border:1px solid var(--bd); border-radius:12px;
+    background:var(--card); color:var(--text);
+  }
+  .textarea{ min-height:110px; resize:vertical; }
+
+  .btn-primary{
+    padding:10px 14px; border-radius:12px; border:1px solid color-mix(in srgb, var(--accent) 56%, var(--bd));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--card)), var(--card));
+    color: var(--text); font-weight:800; cursor:pointer;
+  }
+  .btn-ghost{ padding:10px 14px; border-radius:12px; border:1px solid var(--bd); background:var(--card); color:var(--text); }
+
+  /* Список свободных кабинетов */
+  .rooms{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .room-card{
+    display:flex; gap:10px; align-items:center;
+    border:1px solid var(--bd); border-radius:12px; padding:10px; background:var(--card);
+  }
+  .room-card input{ margin:0; }
+  .room-meta{ display:flex; flex-direction:column; line-height:1.2; }
+  .room-meta small{ color:var(--muted); }
+
+  /* ===== Мобилка ===== */
+  @media (max-width: 880px){
+    .bar{ gap:8px; }
+    .bar .field{ width: calc(50% - 6px); }
+    .bar .field.full{ width:100%; }
+    .bar input[type="date"], .bar select{ min-width: unset; }
+    .day-h strong{ font-size:15px; }
+    .tablewrap{ -webkit-overflow-scrolling: touch; }
+    .time{ width:92px; }
+    .room{ width:180px; }
+    .rooms{ grid-template-columns:1fr; }
+    .modal-card{ padding:14px; }
+  }
+  /* Ещё компактнее для телефонов */
+  @media (max-width: 600px){
+    table.t{ table-layout: fixed; width:100%; }
+    .t th, .t td{ 
+      padding:8px 10px; 
+      white-space: normal;           /* разрешаем перенос */
+      font-size: 13px;
+      line-height: 1.25;
+    }
+    .num{ width:46px; }
+    .time{ width:auto; }
+    .room{ width:auto; }
+
+    /* Прячем малозначимые на мобилке колонки: Тип (5), ID (8) */
+    .t th:nth-child(5), .t td:nth-child(5),
+    .t th:nth-child(8), .t td:nth-child(8){ display:none; }
+
+    /* Если совсем тесно — можно спрятать и ДЗ (7)
+    .t th:nth-child(7), .t td:nth-child(7){ display:none; }
+    */
+
+    /* Кнопки поменьше */
+    .btn-sm{ padding:6px 8px; font-size:12px; }
+
+    /* ===== Модалки: фиксируем высоту и включаем внутренний скролл ===== */
+    .modal{ 
+      overflow: auto;                        /* если карточка выше экрана — страница сможет скроллиться */
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-card{
+      max-height: 92vh;                      /* карточка не выше экрана */
+      display: flex; flex-direction: column; /* чтобы .modal-body могла занимать остаток */
+      overflow: hidden;                       /* скролл только внутри тела */
+    }
+
+    .modal-body{
+      overflow: auto;                         /* СКРОЛЛ ТУТ */
+      min-height: 0;                          /* важно для flex-детей, иначе не скроллится на iOS */
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* конкретно список кабинетов */
+    #roomsWrap{
+      max-height: 60vh;                       /* чтобы не выдавливал футер модалки */
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* карточки кабинетов не расползаются и текст не вываливается */
+    .rooms{ grid-auto-rows: minmax(0, auto); }
+    .room-card{ min-width: 0; }               /* предотвращает переполнение в flex */
+    .room-meta{ min-width: 0; }
+    .room-meta strong{ overflow-wrap: anywhere; }
+  }
+
+  /* ===== Мобилка: исправляем наезды текста в таблице ===== */
+  @media (max-width: 600px){
+    table.t{ table-layout: fixed; width:100%; }
+
+    .t th, .t td{
+      padding: 8px 10px;
+      white-space: normal;                  /* разрешаем перенос */
+      word-break: break-word;               /* ломаем длинные слова */
+      overflow-wrap: anywhere;              /* и вообще разрешаем ломать где угодно */
+      vertical-align: top;                  /* чтобы многострочные ячейки не «давили» соседей */
+      line-height: 1.3;
+    }
+
+    /* немножко распределим ширину по ключевым колонкам */
+    .t th:nth-child(4), .t td:nth-child(4){ width: 48%; }  /* Дисциплина — просторней */
+    .t th:nth-child(6), .t td:nth-child(6){ width: 40%; }  /* Аудитория/Платформа */
+
+    /* как и было — прячем малозначимые: Тип (5), ID (8) */
+    .t th:nth-child(5), .t td:nth-child(5),
+    .t th:nth-child(8), .t td:nth-child(8){ display:none; }
+
+    /* чтобы шапка не перекрывалась содержимым */
+    .t th{ z-index: 2; }
+  }
+
+  /* ===== 1) Модалки: внутренний скролл на любых экранах ===== */
+  .modal{
+    overflow: auto;                         /* чтобы фон можно было прокрутить, если карточка огромная */
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-card{
+    max-height: 92vh;                       /* карточка не выше экрана */
+    display: flex; flex-direction: column;  /* даём .modal-body занять остаток */
+    overflow: hidden;
+  }
+  .modal-body{
+    overflow: auto;                         /* СКРОЛЛ ВНУТРИ */
+    min-height: 0;                          /* важно для iOS/flex, иначе не скроллится */
+    -webkit-overflow-scrolling: touch;
+  }
+  #roomsWrap{
+    max-height: 60vh;                       /* длинные списки комнат — прокручиваем */
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* карточки комнат не расползаются */
+  .room-card{ min-width: 0; }
+  .room-meta{ min-width: 0; }
+  .room-meta strong{ overflow-wrap: normal; word-break: normal; }
+
+  /* ===== 2) Мобилки: показываем ВСЕ колонки и даём горизонтальный скролл ===== */
+  @media (max-width: 880px){
+    .tablewrap{
+      overflow-x: auto;                     /* боковой скролл */
+      -webkit-overflow-scrolling: touch;
+    }
+    table.t{
+      table-layout: auto;                   /* чтобы высота строк считалась корректно */
+      min-width: 1100px;                    /* ширина «полной» таблицы — заставит включиться горизонтальный скролл */
+    }
+    .t th, .t td{
+      padding: 8px 10px;
+      font-size: 13px;
+      line-height: 1.3;
+      white-space: nowrap;                  /* НЕ ломаем слова на куски (исправляет «в столбик») */
+      word-break: normal;
+      overflow-wrap: normal;
+      vertical-align: top;
+    }
+
+    /* Явно вернём скрытые ранее колонки: Тип (5) и ID (8) */
+    .t th:nth-child(5), .t td:nth-child(5),
+    .t th:nth-child(8), .t td:nth-child(8){
+      display: table-cell !important;
+    }
+
+    /* чуточку ужмём некоторые колонки, чтобы «держали» ширину */
+    .num{ width: 56px; }
+    .time{ width: 112px; }
+    .room{ width: 220px; }
+  }
+
+  /* ===== 3) Небольшие косметики для узких телефонов, без ломания текста ===== */
+  @media (max-width: 600px){
+    .t th, .t td{ font-size: 12.5px; padding: 7px 8px; }
+  }
+  /* ===== A) Страница НЕ скроллится по горизонтали ===== */
+  html, body{
+    overflow-x: clip;       /* modern */
+    overflow-x: hidden;     /* fallback */
+    max-width: 100%;
+  }
+
+  /* ===== B) Каждая таблица скроллится сама (горизонтально) ===== */
+  .tablewrap{
+    display: block;
+    width: 100%;
+    overflow-x: auto;                 /* горизонтальный скролл только у контейнера */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;   /* не "прокидывать" скролл на страницу */
+    scrollbar-width: thin;
+  }
+  .tablewrap::-webkit-scrollbar{ height: 6px; }
+
+  /* ширину задаём САМОЙ таблице, чтобы появились полосы в .tablewrap, а не у body */
+  table.t{
+    min-width: 1100px;     /* под все колонки; можно подстроить под свои заголовки */
+    table-layout: auto;
+  }
+
+  /* мобильные размеры, без ломания строк и без исчезающих колонок */
+  @media (max-width: 880px){
+    .t th, .t td{
+      padding: 8px 10px;
+      font-size: 13px;
+      line-height: 1.3;
+      white-space: nowrap;            /* НЕ переносим слова на множество строк */
+      word-break: normal;
+      overflow-wrap: normal;
+      vertical-align: top;
+    }
+
+    /* на мобилке показываем ВСЕ колонки (если где-то ранее скрывали) */
+    .t th, .t td{ display: table-cell !important; }
+
+    /* немного «закрепим» минимальные ширины служебных колонок, чтобы читались */
+    .num{  width: 56px; }
+    .time{ width: 112px; }
+    .room{ width: 220px; }
+  }
+
+  /* ===== C) Модалка "Смена кабинета": всегда есть внутренний скролл ===== */
+  .modal{
+    overflow: hidden;                     /* фон не скроллится горизонтально */
+  }
+  .modal-card{
+    max-height: 92vh;                     /* карточка не выше экрана */
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-body{
+    min-height: 0;                        /* важно для корректного скролла во flex-контейнере */
+    overflow: auto;                       /* ВНУТРЕННИЙ СКРОЛЛ в модалке */
+    -webkit-overflow-scrolling: touch;
+  }
+  #roomsWrap{
+    max-height: 60vh;                     /* длинные списки аудиторий — прокручиваем */
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  /* карточки комнат не растягивают контейнер */
+  .room-card{ min-width: 0; }
+  .room-meta{ min-width: 0; }
+  /* страница не скроллится по горизонтали */
+  html, body { overflow-x: hidden; max-width: 100%; }
+
+  /* горизонтальный скролл — только у контейнера таблицы */
+  .tablewrap{
+    display:block;
+    width:100%;
+    overflow-x:auto;         /* <- ключ */
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action: pan-x;     /* жесты только по X внутри контейнера */
+    overscroll-behavior-inline: contain;
+  }
+
+  /* таблица шире контейнера -> появится полоска в .tablewrap (а не у body) */
+  table.t{
+    min-width: 1100px;       /* подгони под свои колонки */
+    table-layout: auto;
+  }
+
+  /* НЕ ломаем строки и не прячем колонки на мобилке; скролл решает */
+  @media (max-width: 880px){
+    .t th, .t td{
+      padding:8px 10px;
+      font-size:13px; line-height:1.3;
+      white-space:nowrap; word-break:normal; overflow-wrap:normal;
+      vertical-align:top;
+    }
+    .num{ width:56px; }
+    .time{ width:112px; }
+    .room{ width:220px; }
+  }
+
+  /* модалка: внутренний скролл списка кабинетов */
+  .modal{ overflow:hidden; }
+  .modal-card{
+    max-height:92vh;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  .modal-body{
+    min-height:0;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  #roomsWrap{
+    max-height:60vh;         /* длинный список — крутится внутри модалки */
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="t-wrap">
+  <!-- Панель фильтров -->
+  <div class="bar">
+    <div class="field">
+      <label>Начало</label>
+      <input type="date" id="start">
+    </div>
+    <div class="field">
+      <label>Конец</label>
+      <input type="date" id="end">
+    </div>
+    <div class="field">
+      <label>Группа</label>
+      <select id="fltGroup">
+        <option value="">Все группы</option>
+      </select>
+    </div>
+    <button id="btnShow">Показать</button>
+    <div class="field full">
+      <div id="stats" class="stat">Загрузка…</div>
+    </div>
+  </div>
+
+  <!-- Календарь -->
+  <div id="calendar" class="t-days"></div>
+</div>
+
+<!-- ===== MODAL: Домашнее задание ===== -->
+<div id="modalHw" class="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="hwTitle">
+    <div class="modal-h">
+      <h3 id="hwTitle">Домашнее задание</h3>
+      <button class="btn-ghost" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="hwLessonId">
+      <label class="muted">Текст задания</label>
+      <textarea id="hwText" class="textarea" placeholder="Кратко опишите ДЗ…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" data-close>Отмена</button>
+      <button class="btn-primary" id="hwSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Смена кабинета ===== -->
+<div id="modalRoom" class="modal" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="roomTitle">
+    <div class="modal-h">
+      <h3 id="roomTitle">Смена кабинета</h3>
+      <button class="btn-ghost" data-close>×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="roomLessonId">
+      <div id="roomsWrap">
+        <div class="muted">Загрузка свободных кабинетов…</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" data-close>Отмена</button>
+      <button class="btn-primary" id="roomApply" disabled>Применить</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ===== Helpers ===== */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+function fmt(d){ return d.toISOString().slice(0,10); }
+function ddmmyyyy(dateStr){ const [y,m,d]=dateStr.split('-'); return `${d}.${m}.${y}`; }
+function weekdayRu(dateStr){ const m=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота']; const d=new Date(dateStr+'T00:00:00'); return m[d.getDay()]; }
+function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+function nowInKgd(){
+  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kaliningrad',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+  const g=t=>parts.find(p=>p.type===t).value; return { date:`${g('year')}-${g('month')}-${g('day')}`, hm:`${g('hour')}:${g('minute')}` };
+}
+function parseHHMMrange(s){ if(!s) return {start:"00:00",end:"23:59"}; const m=String(s).match(/(\d{1,2}):(\d{2}).*?(\d{1,2}):(\d{2})/); if(!m) return {start:"00:00",end:"23:59"}; const P=x=>String(x).padStart(2,'0'); return {start:`${P(m[1])}:${m[2]}`, end:`${P(m[3])}:${m[4]}`}; }
+function cmpHM(a,b){ return a===b?0:(a<b?-1:1); }
+
+/* ===== Default week ===== */
+function setDefaultRange(){
+  const now=new Date(); const day=now.getDay(); const diffToMon=(day+6)%7;
+  const start=new Date(now); start.setDate(now.getDate()-diffToMon);
+  const end=new Date(start); end.setDate(start.getDate()+6);
+  $('#start').value = fmt(start); $('#end').value = fmt(end);
+}
+
+/* ===== Modal engine ===== */
+function bindModal(root){
+  const close = ()=>{ root.classList.remove('show'); root.setAttribute('aria-hidden','true'); };
+  root.addEventListener('click', e=>{ if(e.target===root || e.target.hasAttribute('data-close')) close(); });
+  root.addEventListener('keydown', e=>{ if(e.key==='Escape') close(); });
+  return { open(){ root.classList.add('show'); root.removeAttribute('aria-hidden'); }, close };
+}
+const modalHw = bindModal($('#modalHw'));
+const modalRoom = bindModal($('#modalRoom'));
+
+/* ===== Normalizers / state ===== */
+function rowState(item, dayDate){
+  const {date:today, hm} = nowInKgd();
+  const {start,end} = parseHHMMrange(item.time);
+  if(dayDate < today) return 'tr-past';
+  if(dayDate > today) return 'tr-up';
+  if(cmpHM(hm,end) > 0) return 'tr-past';
+  if(cmpHM(hm,start) < 0) return 'tr-up';
+  return 'tr-ongo';
+}
+function normalizeDay(day, groupFilter){
+  let items = (day.items||[]).slice();
+  if(groupFilter) items = items.filter(it => it.break ? true : String(it.group||"")===groupFilter);
+  const lessonIdx = items.map((it,i)=>!it.break?i:null).filter(i=>i!==null);
+  const out=[];
+  for(let i=0;i<items.length;i++){
+    const it=items[i];
+    if(!it.break){ out.push(it); continue; }
+    const hasPrev = lessonIdx.some(idx=>idx<i);
+    const hasNext = lessonIdx.some(idx=>idx>i);
+    if(hasPrev && hasNext) out.push(it);
+  }
+  const hasLesson = out.some(x=>!x.break);
+  return { date: day.date, items: out, holiday: !hasLesson };
+}
+function fillGroupFilter(days){
+  const sel=$('#fltGroup'); const keep=sel.value; const set=new Set();
+  for(const d of days){ for(const it of (d.items||[])){ if(!it.break && it.group) set.add(it.group); } }
+  sel.innerHTML = `<option value="">Все группы</option>` + [...set].sort().map(g=>`<option>${g}</option>`).join('');
+  if([...set].includes(keep)) sel.value = keep;
+}
+
+// безопасный drag-to-scroll: не ломает клики и модалки
+function enableDragScroll(el){
+  let down = false, startX = 0, startLeft = 0, dragged = false;
+
+  el.addEventListener('pointerdown', (e)=>{
+    // не перехватываем жест, если ткнули по кнопке/ссылке/инпуту и т.п.
+    if (e.target.closest('button,a,input,textarea,select,label')) return;
+    down = true;
+    dragged = false;
+    startX = e.clientX;
+    startLeft = el.scrollLeft;
+  });
+
+  el.addEventListener('pointermove', (e)=>{
+    if (!down) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 5) dragged = true;   // порог, чтобы не убивать «нажатие»
+    el.scrollLeft = startLeft - dx;
+    e.preventDefault();                      // не даём странице скроллиться
+  });
+
+  const end = ()=>{ down = false; };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('pointerleave', end);
+
+  // если это был именно drag — гасим "клик" по дочерним узлам (только в этот раз)
+  el.addEventListener('click', (e)=>{
+    if (dragged) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+
+function initTableScroll(){
+  document.querySelectorAll('.tablewrap').forEach(enableDragScroll);
+}
+
+/* ===== Render ===== */
+function render(days){
+  const wrap=$('#calendar'); const groupFilter=$('#fltGroup').value;
+  let html="";
+  for(const dRaw of days){
+    const day = normalizeDay(dRaw, groupFilter);
+    const pairs = (day.items||[]).filter(x=>!x.break).length;
+
+    html += `<div class="day">
+      <div class="day-h">
+        <strong>${weekdayRu(day.date)} • ${ddmmyyyy(day.date)}</strong>
+        <span class="muted">${day.holiday ? "Выходной" : `${pairs} пар(ы)`}</span>
+      </div>`;
+
+    if(day.holiday){ html += `<div class="holiday">Выходной</div></div>`; continue; }
+
+    html += `<div class="tablewrap"><table class="t">
+      <thead><tr>
+        <th class="num">№</th>
+        <th class="time">Время</th>
+        <th>Группа</th>
+        <th>Дисциплина</th>
+        <th>Тип</th>
+        <th class="room">Аудитория / Платформа</th>
+        <th>ДЗ</th>
+        <th>ID</th>
+        <th>Действия</th>
+      </tr></thead><tbody>`;
+
+    for(const it of day.items){
+      if(it.break){
+        html += `<tr class="tr-break">
+          <td class="num">${it.order}</td>
+          <td class="time">${it.time||""}</td>
+          <td colspan="7">Перерыв</td>
+        </tr>`;
+        continue;
+      }
+      const isRemote = !!it.is_remote;
+      const rowCls = rowState(it, day.date) + (isRemote? ' tr-remote':'');
+
+      html += `<tr class="${rowCls}">
+        <td class="num">${it.order}</td>
+        <td class="time">${it.time||""}</td>
+        <td>${it.group||""}</td>
+        <td>${it.discipline||""}</td>
+        <td>${it.lesson_type||""}</td>
+        <td class="room">${isRemote ? (it.remote_platform||"СДО") : (it.room || "—")}</td>
+        <td>${it.homework ? `<span class="chip on" title="${it.homework.replace(/"/g,'&quot;')}">есть</span>` : `<span class="chip">нет</span>`}</td>
+        <td>${it.id||""}</td>
+        <td>
+          <div class="tbl-actions">
+            <button class="btn-sm" data-action="hw" data-id="${it.id}" data-hw="${(it.homework||'').replace(/"/g,'&quot;')}">ДЗ</button>
+            <button class="btn-sm" data-action="room" data-id="${it.id}">Каб.</button>
+          </div>
+        </td>
+      </tr>`;
+    }
+
+    html += `</tbody></table></div></div>`;
+  }
+  wrap.innerHTML = html || `<div class="holiday">Нет данных за выбранный период</div>`;
+  initTableScroll();
+}
+
+/* ===== API ===== */
+async function loadAll(){
+  const st = $('#start').value, en = $('#end').value;
+
+  // Статистика
+  try{
+    const s = await fetch(`/api/teacher/me/stats/?start=${st}&end=${en}`, {credentials:"same-origin"});
+    if(!s.ok) throw 0;
+    const stats = await s.json();
+    $('#stats').innerHTML = `Пары: <b>${stats.total_lessons}</b> • Часы: <b>${stats.total_hours}</b> • Рабочих дней: <b>${stats.working_days}</b>`;
+  }catch{ $('#stats').textContent = 'Нет доступа или ошибка'; }
+
+  // Расписание
+  let data=[];
+  try{
+    const r = await fetch(`/api/teacher/me/schedule/?start=${st}&end=${en}`, {credentials:"same-origin"});
+    data = await r.json();
+    if(!Array.isArray(data)) data = [];
+  }catch{ data = []; }
+  fillGroupFilter(data);
+  render(data);
+}
+
+/* ====== Modals: HW ====== */
+$('#calendar').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
+
+  if(btn.dataset.action === 'hw'){
+    $('#hwLessonId').value = id;
+    $('#hwText').value = btn.getAttribute('data-hw') || '';
+    modalHw.open();
+    $('#hwText').focus();
+  }
+
+  if(btn.dataset.action === 'room'){
+    $('#roomLessonId').value = id;
+    $('#roomApply').disabled = true;
+    $('#roomsWrap').innerHTML = `<div class="muted">Загрузка свободных кабинетов…</div>`;
+    modalRoom.open();
+    try{
+      const r = await fetch(`/api/teacher/room/free/?lesson_id=${id}`, {credentials:"same-origin"});
+      if(!r.ok){ $('#roomsWrap').innerHTML = `<div class="muted">Ошибка загрузки</div>`; return; }
+      const list = await r.json();
+      if(!list.length){ $('#roomsWrap').innerHTML = `<div class="muted">Свободных кабинетов нет</div>`; return; }
+
+      const html = `<div class="rooms">` + list.map(x=>`
+        <label class="room-card">
+          <input type="radio" name="roomPick" value="${x.id}">
+          <div class="room-meta">
+            <strong>${x.title || (x.building+' · '+x.name)}</strong>
+            <small>Мест: ${x.capacity}${x.computers?(", ПК:"+x.computers):""}</small>
+          </div>
+        </label>`).join('') + `</div>`;
+      $('#roomsWrap').innerHTML = html;
+
+      $('#roomsWrap').addEventListener('change', (ev)=>{
+        if(ev.target.name==='roomPick') $('#roomApply').disabled = false;
+      }, {once:true});
+    }catch{
+      $('#roomsWrap').innerHTML = `<div class="muted">Ошибка сети</div>`;
+    }
+  }
+});
+
+/* HW save */
+$('#hwSave').addEventListener('click', async ()=>{
+  const id = $('#hwLessonId').value;
+  const text = $('#hwText').value.trim();
+  const form = new FormData(); form.append('lesson_id', id); form.append('text', text);
+  const r = await fetch('/api/teacher/homework/set/', {
+    method:'POST', body:form, credentials:'same-origin',
+    headers:{'X-CSRFToken': getCookie('csrftoken')}
+  });
+  const msg = await r.text();
+  alert(msg);
+  modalHw.close();
+  loadAll();
+});
+
+/* Room apply */
+$('#roomApply').addEventListener('click', async ()=>{
+  const id = $('#roomLessonId').value;
+  const pick = $('input[name="roomPick"]:checked');
+  if(!pick){ alert('Выберите кабинет'); return; }
+  const form = new FormData(); form.append('lesson_id', id); form.append('room_id', pick.value);
+  const r = await fetch('/api/teacher/room/change/', {
+    method:'POST', body:form, credentials:'same-origin',
+    headers:{'X-CSRFToken': getCookie('csrftoken')}
+  });
+  const msg = await r.text();
+  alert(msg);
+  modalRoom.close();
+  loadAll();
+});
+
+/* Close modals on global Esc when opened */
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape'){
+    if($('#modalHw').classList.contains('show')) modalHw.close();
+    if($('#modalRoom').classList.contains('show')) modalRoom.close();
+  }
+});
+
+/* Boot */
+setDefaultRange();
+$('#btnShow').addEventListener('click', loadAll);
+$('#fltGroup').addEventListener('change', loadAll);
+loadAll();
+</script>
+{% endblock %}
